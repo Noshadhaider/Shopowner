@@ -1,0 +1,1168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Shop Order System</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Manrope:wght@400;500;600;700&display=swap');
+
+  :root{
+    --cream:#FBF4E6;
+    --ink:#2B2118;
+    --terracotta:#C1582B;
+    --terracotta-dark:#9E4521;
+    --leaf:#5B7A4F;
+    --line:#E3D5BC;
+    --card:#FFFDF8;
+    --pending:#A33B3B;
+    --new:#C1582B;
+    --making:#B98A2E;
+    --done:#5B7A4F;
+    --error:#A33B3B;
+  }
+
+  *{box-sizing:border-box; margin:0; padding:0;}
+
+  body{
+    background:var(--cream);
+    color:var(--ink);
+    font-family:'Manrope', sans-serif;
+    min-height:100vh;
+  }
+
+  .view{ display:none; }
+  .view.active{ display:block; }
+
+  /* ===== Shared / loading / error ===== */
+  .full-error{ max-width:420px; margin:60px auto; padding:0 24px; text-align:center; }
+  .full-error .icon{ font-size:46px; margin-bottom:12px; }
+  .full-error .title{ font-family:'Fraunces',serif; font-weight:700; font-size:22px; color:var(--ink); margin-bottom:8px; }
+  .full-error .sub{ font-size:14px; color:#8A7860; }
+
+  /* ===== LOGIN VIEW ===== */
+  #view-login{
+    min-height:100vh;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:24px;
+  }
+
+  .auth-card{
+    background:var(--card);
+    border:1.5px solid var(--line);
+    border-radius:18px;
+    padding:32px 26px;
+    max-width:380px;
+    width:100%;
+  }
+
+  .brand{ text-align:center; margin-bottom:24px; }
+  .brand-icon{ font-size:38px; margin-bottom:8px; }
+  .brand-title{ font-family:'Fraunces', serif; font-weight:700; font-size:22px; }
+  .brand-sub{ font-size:13px; color:#8A7860; margin-top:4px; }
+
+  .mode-toggle{ display:flex; gap:6px; margin-bottom:22px; background:#F0E8D8; border-radius:10px; padding:4px; }
+  .mode-btn{
+    flex:1; padding:9px; border:none; background:none; border-radius:8px;
+    font-size:13.5px; font-weight:700; color:#9A8870; cursor:pointer; font-family:'Manrope', sans-serif;
+  }
+  .mode-btn.active{ background:var(--card); color:var(--ink); }
+
+  .field{ margin-bottom:14px; }
+  .field label{
+    font-size:12px; font-weight:600; color:#8A7860; text-transform:uppercase;
+    letter-spacing:0.04em; display:block; margin-bottom:6px;
+  }
+  .field input{
+    width:100%; border:1.5px solid var(--line); border-radius:10px; padding:11px 12px;
+    font-family:'Manrope', sans-serif; font-size:14px; background:white;
+  }
+
+  .submit-btn{
+    width:100%; background:var(--terracotta); color:white; border:none; border-radius:12px;
+    padding:14px; font-size:14.5px; font-weight:700; margin-top:6px; cursor:pointer;
+  }
+  .submit-btn:disabled{ opacity:0.6; cursor:not-allowed; }
+
+  .error-msg{
+    background:#FFF1EF; border:1.5px solid var(--error); color:var(--error); border-radius:10px;
+    padding:10px 12px; font-size:13px; margin-bottom:14px; display:none;
+  }
+  .error-msg.show{ display:block; }
+
+  .signup-only{ display:none; }
+  .signup-only.show{ display:block; }
+
+  .hint{ font-size:11.5px; color:#9A8870; margin-top:8px; text-align:center; }
+
+  /* ===== DASHBOARD VIEW ===== */
+  #view-dashboard header{
+    padding:24px 20px 18px; background:var(--ink); color:var(--cream);
+    display:flex; justify-content:space-between; align-items:flex-start;
+  }
+  .dash-title{ font-family:'Fraunces', serif; font-weight:700; font-size:22px; }
+  .dash-sub{ font-size:13px; color:#C9A876; margin-top:3px; }
+  .logout-btn{
+    background:none; border:1.5px solid #6B5C48; color:var(--cream); border-radius:8px;
+    padding:7px 12px; font-size:12px; font-weight:600; cursor:pointer; font-family:'Manrope', sans-serif;
+  }
+
+  .stats-row{ display:grid; grid-template-columns:1fr 1fr; gap:10px; padding:16px 16px 0; max-width:640px; margin:0 auto; }
+  .stat-box{ background:var(--card); border:1.5px solid var(--line); border-radius:12px; padding:12px 14px; text-align:center; }
+  .stat-num{ font-family:'Fraunces', serif; font-weight:700; font-size:22px; color:var(--terracotta-dark); }
+  .stat-label{ font-size:11px; color:#9A8870; margin-top:2px; text-transform:uppercase; letter-spacing:0.03em; }
+
+  .sales-banner{ max-width:640px; margin:14px auto 0; padding:0 16px; font-size:13px; font-weight:600; color:#8A7860; text-align:right; }
+
+  #view-dashboard main, #view-customer main{ padding:16px; max-width:640px; margin:0 auto; }
+
+  .empty-state, .empty-state-small{ text-align:center; padding:60px 20px; color:#9A8870; }
+  .empty-state-small{ padding:30px 16px; font-size:13.5px; }
+  .empty-icon{ font-size:40px; margin-bottom:10px; }
+
+  .order-card{ background:var(--card); border:1.5px solid var(--line); border-radius:14px; padding:16px; margin-bottom:12px; }
+  .pending-card{ border:1.5px solid var(--pending); background:#FFF6F4; }
+  .pending-banner{ font-size:11px; font-weight:700; color:var(--pending); text-transform:uppercase; letter-spacing:0.04em; margin-bottom:8px; }
+
+  .order-top{ display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:10px; }
+  .order-id{ font-family:'Fraunces', serif; font-weight:700; font-size:16px; }
+  .queue-tag{
+    font-family:'Manrope', sans-serif; font-weight:700; font-size:11px; color:var(--terracotta-dark);
+    background:#F3E3CC; padding:2px 8px; border-radius:100px; margin-left:6px; vertical-align:middle;
+  }
+  .order-meta{ font-size:12px; color:#9A8870; margin-top:2px; }
+
+  .status-pill{
+    font-size:11px; font-weight:700; padding:4px 10px; border-radius:100px; color:white;
+    text-transform:uppercase; letter-spacing:0.03em; flex-shrink:0;
+  }
+  .status-pending{ background:var(--pending); }
+  .status-new{ background:var(--new); }
+  .status-making{ background:var(--making); }
+  .status-done{ background:var(--done); }
+
+  .order-items{ border-top:1px solid var(--line); padding-top:10px; margin-bottom:10px; }
+  .order-line{ display:flex; justify-content:space-between; font-size:13.5px; padding:3px 0; }
+  .order-total{ display:flex; justify-content:space-between; font-weight:700; font-size:14px; border-top:1px solid var(--line); padding-top:8px; margin-top:4px; }
+
+  .order-actions, .approve-row{ display:flex; gap:8px; margin-top:12px; }
+  .action-btn{
+    flex:1; border:1.5px solid var(--line); background:white; border-radius:9px; padding:9px;
+    font-size:12.5px; font-weight:600; cursor:pointer; color:var(--ink);
+  }
+  .action-btn.active-making{ border-color:var(--making); background:var(--making); color:white; }
+  .action-btn.active-done{ border-color:var(--done); background:var(--done); color:white; }
+  .approve-btn{ flex:1; border:none; background:var(--leaf); color:white; border-radius:9px; padding:11px; font-size:13px; font-weight:700; cursor:pointer; }
+  .reject-btn{ flex:1; border:1.5px solid var(--pending); background:white; color:var(--pending); border-radius:9px; padding:11px; font-size:13px; font-weight:700; cursor:pointer; }
+
+  .tab-row{ display:flex; gap:6px; padding:14px 16px 0; max-width:640px; margin:0 auto; }
+  .tab-btn{
+    flex:1; padding:10px 8px; background:var(--card); border:1.5px solid var(--line); border-radius:10px;
+    font-size:13px; font-weight:700; color:#9A8870; cursor:pointer; font-family:'Manrope', sans-serif;
+  }
+  .tab-btn.active{ background:var(--ink); border-color:var(--ink); color:var(--cream); }
+
+  .tab-page{ display:none; }
+  .tab-page.active{ display:block; }
+
+  .menu-toolbar{ display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; }
+  .menu-toolbar h2{ font-family:'Fraunces', serif; font-size:18px; font-weight:700; }
+  .add-product-btn{ background:var(--terracotta); color:white; border:none; border-radius:9px; padding:9px 14px; font-size:13px; font-weight:700; cursor:pointer; }
+
+  .product-card{
+    background:var(--card); border:1.5px solid var(--line); border-radius:14px; padding:14px 16px;
+    margin-bottom:10px; display:flex; justify-content:space-between; align-items:center; gap:10px;
+  }
+  .product-info .pname{ font-weight:700; font-size:15px; }
+  .product-info .pcat{ font-size:11.5px; color:#9A8870; margin-top:2px; }
+  .product-info .pdesc{ font-size:12.5px; color:#9A8870; margin-top:3px; }
+  .product-info .pprice{ font-family:'Fraunces', serif; font-weight:700; font-size:14.5px; color:var(--terracotta-dark); margin-top:5px; }
+
+  .product-actions{ display:flex; flex-direction:column; gap:6px; flex-shrink:0; }
+  .pact-btn{ border:1.5px solid var(--line); background:white; border-radius:8px; padding:6px 12px; font-size:12px; font-weight:600; cursor:pointer; color:var(--ink); }
+  .pact-btn.danger{ border-color:#C77A6A; color:#C77A6A; }
+  .pact-btn.toggle-off{ background:#F0E8D8; color:#9A8870; }
+
+  .form-overlay{ position:fixed; inset:0; background:rgba(43,33,24,0.5); display:none; align-items:flex-end; z-index:40; }
+  .form-overlay.show{ display:flex; }
+  .form-sheet{ background:var(--cream); width:100%; max-height:90vh; border-radius:20px 20px 0 0; padding:22px 20px 26px; overflow-y:auto; }
+  .form-sheet h3{ font-family:'Fraunces', serif; font-size:20px; font-weight:700; margin-bottom:16px; }
+  .form-field{ margin-bottom:14px; }
+  .form-field label{ font-size:12px; font-weight:600; color:#8A7860; text-transform:uppercase; letter-spacing:0.04em; display:block; margin-bottom:6px; }
+  .form-field input{ width:100%; border:1.5px solid var(--line); border-radius:10px; padding:11px 12px; font-family:'Manrope', sans-serif; font-size:14px; background:white; }
+  .form-save-btn{ width:100%; background:var(--terracotta); color:white; border:none; border-radius:12px; padding:14px; font-size:14.5px; font-weight:700; margin-top:6px; cursor:pointer; }
+  .form-cancel{ text-align:center; margin-top:12px; font-size:13px; color:#9A8870; cursor:pointer; }
+
+  .qr-setup-row{ display:flex; gap:10px; margin-bottom:18px; align-items:flex-end; }
+  .qr-setup-row .form-field{ flex:1; margin-bottom:0; }
+  .qr-generate-btn{ background:var(--terracotta); color:white; border:none; border-radius:10px; padding:11px 16px; font-size:13.5px; font-weight:700; cursor:pointer; height:42px; }
+  .qr-grid{ display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  .qr-card{ background:var(--card); border:1.5px solid var(--line); border-radius:14px; padding:14px; text-align:center; }
+  .qr-card img, .qr-card canvas{ width:100%; max-width:140px; margin:0 auto 8px; display:block; }
+  .qr-card .qr-label{ font-family:'Fraunces', serif; font-weight:700; font-size:14px; }
+  .qr-card .qr-sub{ font-size:9.5px; color:#9A8870; margin-top:2px; word-break:break-all; }
+  .qr-card.takeaway{ border-color:var(--leaf); background:#F4F8F1; }
+  .qr-section-title{
+    font-family:'Fraunces', serif; font-size:15px; font-weight:700; color:var(--terracotta-dark);
+    text-transform:uppercase; letter-spacing:0.05em; margin:22px 0 10px;
+  }
+  .qr-section-title:first-child{ margin-top:0; }
+  .qr-print-btn{ display:block; width:100%; margin-top:18px; background:var(--ink); color:var(--cream); border:none; border-radius:10px; padding:12px; font-size:13.5px; font-weight:700; cursor:pointer; }
+
+  .refresh-note{ text-align:center; font-size:12px; color:#9A8870; padding:14px 0 0; }
+
+  /* ===== CUSTOMER VIEW ===== */
+  #view-customer header{
+    padding:28px 20px 22px; border-bottom:2px solid var(--line); background:var(--card);
+    position:sticky; top:0; z-index:10;
+  }
+  .shop-name{ font-family:'Fraunces', serif; font-weight:700; font-size:28px; letter-spacing:-0.01em; }
+  .shop-tag{ font-size:13px; color:#8A7860; margin-top:4px; letter-spacing:0.02em; }
+
+  #view-customer main{ padding:20px 16px 90px; max-width:560px; }
+
+  .category-label{
+    font-family:'Fraunces', serif; font-weight:600; font-size:15px; color:var(--terracotta-dark);
+    text-transform:uppercase; letter-spacing:0.08em; margin:28px 4px 12px;
+  }
+  .category-label:first-child{ margin-top:8px; }
+
+  .item{
+    background:var(--card); border:1.5px solid var(--line); border-radius:14px; padding:14px 16px;
+    margin-bottom:10px; display:flex; justify-content:space-between; align-items:center; gap:12px;
+  }
+  .item-info{ flex:1; }
+  .item-name{ font-size:16px; font-weight:600; }
+  .item-desc{ font-size:13px; color:#9A8870; margin-top:2px; }
+  .item-price{ font-family:'Fraunces', serif; font-weight:600; font-size:15px; margin-top:6px; color:var(--terracotta-dark); }
+
+  .qty-control{ display:flex; align-items:center; gap:10px; flex-shrink:0; }
+  .qty-btn{
+    width:30px; height:30px; border-radius:8px; border:1.5px solid var(--terracotta); background:white;
+    color:var(--terracotta); font-size:17px; font-weight:700; cursor:pointer; display:flex;
+    align-items:center; justify-content:center; line-height:1;
+  }
+  .add-btn{ border-radius:8px; border:1.5px solid var(--terracotta); background:var(--terracotta); color:white; font-size:13px; font-weight:600; padding:7px 14px; cursor:pointer; }
+  .qty-num{ min-width:18px; text-align:center; font-weight:700; font-size:15px; }
+
+  .cart-bar{
+    position:fixed; bottom:0; left:0; right:0; background:var(--ink); color:var(--cream); padding:14px 20px;
+    display:none; align-items:center; justify-content:space-between; cursor:pointer; z-index:20;
+  }
+  .cart-bar.show{ display:flex; }
+  .cart-bar-left{ font-size:14px; font-weight:600; }
+  .cart-bar-left span{ color:#C9A876; font-family:'Fraunces', serif; }
+  .cart-bar-right{ background:var(--terracotta); color:white; font-weight:700; font-size:14px; padding:8px 16px; border-radius:8px; }
+
+  .overlay{ position:fixed; inset:0; background:rgba(43,33,24,0.5); display:none; z-index:30; align-items:flex-end; }
+  .overlay.show{ display:flex; }
+  .sheet{ background:var(--cream); width:100%; max-height:85vh; border-radius:20px 20px 0 0; padding:22px 20px 24px; overflow-y:auto; }
+  .sheet-title{ font-family:'Fraunces', serif; font-weight:700; font-size:22px; margin-bottom:16px; }
+  .sheet-item{ display:flex; justify-content:space-between; padding:10px 0; border-bottom:1px solid var(--line); font-size:14px; }
+  .sheet-total{ display:flex; justify-content:space-between; padding:16px 0 4px; font-family:'Fraunces', serif; font-weight:700; font-size:18px; }
+
+  .type-toggle{ display:flex; gap:8px; }
+  .type-btn{
+    flex:1; border:1.5px solid var(--line); background:white; color:var(--ink); border-radius:10px;
+    padding:11px 8px; font-size:13.5px; font-weight:600; cursor:pointer; font-family:'Manrope', sans-serif;
+  }
+  .type-btn.active{ border-color:var(--terracotta); background:var(--terracotta); color:white; }
+
+  .locked-type-badge{
+    background:#F4F8F1; border:1.5px solid var(--leaf); color:var(--leaf); border-radius:10px;
+    padding:11px 12px; font-size:13.5px; font-weight:700;
+  }
+
+  .place-order-btn{
+    width:100%; background:var(--terracotta); color:white; border:none; border-radius:12px;
+    padding:15px; font-size:15px; font-weight:700; margin-top:20px; cursor:pointer;
+  }
+  .place-order-btn:disabled{ opacity:0.6; cursor:not-allowed; }
+  .close-sheet{ text-align:center; margin-top:14px; font-size:13px; color:#9A8870; cursor:pointer; }
+
+  .confirm-screen{ text-align:center; padding:30px 10px; }
+  .confirm-icon{ font-size:46px; margin-bottom:10px; }
+  .status-ready .confirm-icon{ animation: pulse 1s ease-in-out infinite; }
+  @keyframes pulse{ 0%, 100%{ transform:scale(1); } 50%{ transform:scale(1.15); } }
+  .confirm-title{ font-family:'Fraunces', serif; font-weight:700; font-size:22px; margin-bottom:6px; }
+  .confirm-sub{ font-size:14px; color:#8A7860; margin-bottom:18px; }
+  .order-id{
+    display:inline-block; background:var(--card); border:1.5px dashed var(--terracotta); padding:8px 16px;
+    border-radius:10px; font-family:'Fraunces', serif; font-weight:700; letter-spacing:0.05em;
+  }
+  .status-track{ display:flex; gap:6px; margin:22px 0 4px; }
+  .track-step{
+    flex:1; font-size:10.5px; font-weight:700; text-align:center; padding:7px 2px; border-radius:8px;
+    background:var(--line); color:#9A8870; text-transform:uppercase; letter-spacing:0.02em;
+  }
+  .track-step.active{ background:var(--terracotta); color:white; }
+  .track-step.done{ background:var(--leaf); color:white; }
+  .new-order-btn{
+    display:block; width:100%; margin-top:16px; background:var(--leaf); color:white; border:none;
+    border-radius:12px; padding:14px; font-size:14px; font-weight:700; cursor:pointer;
+  }
+
+  @media print{
+    #view-dashboard header, .tab-row, .stats-row, .sales-banner, .qr-setup-row, .qr-print-btn, .refresh-note{
+      display:none !important;
+    }
+  }
+</style>
+</head>
+<body>
+
+<!-- ===================== LOADING ===================== -->
+<div class="full-error" id="loadingScreen">
+  <div class="icon">⏳</div>
+  <div class="title">Loading…</div>
+</div>
+
+<!-- ===================== LOGIN VIEW ===================== -->
+<div class="view" id="view-login">
+  <div id="view-login-inner" style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;">
+    <div class="auth-card">
+      <div class="brand">
+        <div class="brand-icon">🍵</div>
+        <div class="brand-title">Shop Owner Login</div>
+        <div class="brand-sub">Manage your menu & orders</div>
+      </div>
+
+      <div class="mode-toggle">
+        <button class="mode-btn active" id="modeLoginBtn" onclick="setAuthMode('login')">Log In</button>
+        <button class="mode-btn" id="modeSignupBtn" onclick="setAuthMode('signup')">Sign Up</button>
+      </div>
+
+      <div class="error-msg" id="authErrorMsg"></div>
+
+      <form id="authForm" onsubmit="handleAuthSubmit(event)">
+        <div class="field signup-only" id="shopNameField">
+          <label>Shop Name</label>
+          <input type="text" id="authShopName" placeholder="e.g. Karachi Chai Point">
+        </div>
+        <div class="field">
+          <label>Email</label>
+          <input type="email" id="authEmail" required placeholder="you@example.com">
+        </div>
+        <div class="field">
+          <label>Password</label>
+          <input type="password" id="authPassword" required placeholder="At least 6 characters" minlength="6">
+        </div>
+        <button type="submit" class="submit-btn" id="authSubmitBtn">Log In</button>
+      </form>
+
+      <div class="hint" id="authHintText">Don't have an account? Tap "Sign Up" above.</div>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== DASHBOARD VIEW ===================== -->
+<div class="view" id="view-dashboard">
+  <header>
+    <div>
+      <div class="dash-title" id="shopNameDisplay">Owner Dashboard</div>
+      <div class="dash-sub">Live Orders</div>
+    </div>
+    <button class="logout-btn" onclick="handleLogout()">Log Out</button>
+  </header>
+
+  <div class="tab-row">
+    <button class="tab-btn active" id="tabBtnOrders" onclick="switchTab('orders')">📋 Orders</button>
+    <button class="tab-btn" id="tabBtnMenu" onclick="switchTab('menu')">🍽 Menu</button>
+    <button class="tab-btn" id="tabBtnQr" onclick="switchTab('qr')">📱 QR Codes</button>
+  </div>
+
+  <div class="tab-page active" id="pageOrders">
+    <div class="stats-row">
+      <div class="stat-box"><div class="stat-num" id="statPending">0</div><div class="stat-label">Pending Approval</div></div>
+      <div class="stat-box"><div class="stat-num" id="statQueue">0</div><div class="stat-label">In Queue (Accepted)</div></div>
+      <div class="stat-box"><div class="stat-num" id="statDineIn">0</div><div class="stat-label">🍽 Dine-in Waiting</div></div>
+      <div class="stat-box"><div class="stat-num" id="statTakeaway">0</div><div class="stat-label">🛍 Takeaway Waiting</div></div>
+    </div>
+    <div class="sales-banner" id="salesBanner">Today's Sales: Rs 0</div>
+    <main id="ordersList"></main>
+    <div class="refresh-note">Orders update live — no refresh needed</div>
+  </div>
+
+  <div class="tab-page" id="pageMenu">
+    <main style="padding-top:18px;">
+      <div class="menu-toolbar">
+        <h2>Your Products</h2>
+        <button class="add-product-btn" onclick="openProductForm()">+ Add Product</button>
+      </div>
+      <div id="productList"></div>
+    </main>
+  </div>
+
+  <div class="tab-page" id="pageQr">
+    <main style="padding-top:18px;">
+      <div class="qr-setup-row">
+        <div class="form-field">
+          <label>Number of Tables</label>
+          <input type="number" id="tableCountInput" min="1" max="50" value="6">
+        </div>
+        <button class="qr-generate-btn" onclick="generateAllQrCodes()">Generate QR Codes</button>
+      </div>
+      <div id="qrCodesArea"></div>
+    </main>
+  </div>
+
+  <div class="form-overlay" id="formOverlay">
+    <div class="form-sheet" id="formSheetContent"></div>
+  </div>
+</div>
+
+<!-- ===================== CUSTOMER VIEW ===================== -->
+<div class="view" id="view-customer">
+  <header>
+    <div class="shop-name" id="custShopNameDisplay"></div>
+    <div class="shop-tag" id="custShopTagDisplay"></div>
+  </header>
+
+  <main id="menu"></main>
+
+  <div class="cart-bar" id="cartBar" onclick="openCart()">
+    <div class="cart-bar-left"><span id="cartCount">0</span> items in cart</div>
+    <div class="cart-bar-right">View Cart · Rs <span id="cartTotal">0</span></div>
+  </div>
+
+  <div class="overlay" id="custOverlay">
+    <div class="sheet" id="custSheetContent"></div>
+  </div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script>
+// =====================================================================
+// FIREBASE CONFIG — replace these placeholder values with your own.
+// Get them from: Firebase Console > Project Settings > General > Your apps
+// =====================================================================
+const firebaseConfig = {
+  apiKey: "AIzaSyB2_c5iNacAvOSryCkfE1Th2tAwFoy9bmw",
+  authDomain: "shopowner-54b53.firebaseapp.com",
+  projectId: "shopowner-54b53",
+  storageBucket: "shopowner-54b53.firebasestorage.app",
+  messagingSenderId: "370357744472",
+  appId: "1:370357744472:web:a50a84bf3ab8a7d262ab2d"
+};
+
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.firestore();
+
+function generateRandomKey(){
+  return Math.random().toString(36).slice(2) + Date.now().toString(36).slice(-4);
+}
+
+// =====================================================================
+// ROUTER — decides which of the three views to show:
+//   1. Customer view  — if the URL has ?shop=... (someone scanned a QR)
+//   2. Login view      — if no one is logged in and it's not a customer link
+//   3. Dashboard view   — if a shop owner is logged in
+// =====================================================================
+function showView(name){
+  document.querySelectorAll('.view').forEach(el => el.classList.remove('active'));
+  document.getElementById('loadingScreen').style.display = 'none';
+  document.getElementById('view-' + name).classList.add('active');
+}
+
+const urlParams = new URLSearchParams(window.location.search);
+const isCustomerLink = urlParams.has('shop');
+
+if(isCustomerLink){
+  // Customer flow does not require login at all.
+  initCustomerView();
+} else {
+  // Owner flow — wait to see if they're logged in.
+  auth.onAuthStateChanged(async user => {
+    if(user){
+      await initDashboard(user);
+    } else {
+      showView('login');
+    }
+  });
+}
+
+// =====================================================================
+// ===== LOGIN VIEW LOGIC =====
+// =====================================================================
+let authMode = 'login';
+
+function setAuthMode(mode){
+  authMode = mode;
+  document.getElementById('modeLoginBtn').classList.toggle('active', mode === 'login');
+  document.getElementById('modeSignupBtn').classList.toggle('active', mode === 'signup');
+  document.getElementById('shopNameField').classList.toggle('show', mode === 'signup');
+  document.getElementById('authSubmitBtn').textContent = mode === 'signup' ? 'Create Account' : 'Log In';
+  document.getElementById('authHintText').textContent = mode === 'signup'
+    ? 'Already have an account? Tap "Log In" above.'
+    : 'Don\'t have an account? Tap "Sign Up" above.';
+  hideAuthError();
+}
+
+function showAuthError(msg){
+  const el = document.getElementById('authErrorMsg');
+  el.textContent = msg;
+  el.classList.add('show');
+}
+
+function hideAuthError(){
+  document.getElementById('authErrorMsg').classList.remove('show');
+}
+
+async function handleAuthSubmit(e){
+  e.preventDefault();
+  hideAuthError();
+
+  const email = document.getElementById('authEmail').value.trim();
+  const password = document.getElementById('authPassword').value;
+  const submitBtn = document.getElementById('authSubmitBtn');
+  submitBtn.disabled = true;
+
+  try {
+    if(authMode === 'signup'){
+      const shopName = document.getElementById('authShopName').value.trim();
+      if(!shopName){
+        showAuthError('Please enter your shop name.');
+        submitBtn.disabled = false;
+        return;
+      }
+
+      const cred = await auth.createUserWithEmailAndPassword(email, password);
+      const uid = cred.user.uid;
+
+      const shopRef = db.collection('shops').doc();
+      await shopRef.set({
+        ownerUid: uid,
+        shopName: shopName,
+        shopTagline: '',
+        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+        takeawayKey: generateRandomKey()
+      });
+
+      await db.collection('users').doc(uid).set({ shopId: shopRef.id });
+
+      await initDashboard(cred.user);
+    } else {
+      const cred = await auth.signInWithEmailAndPassword(email, password);
+      await initDashboard(cred.user);
+    }
+  } catch(err){
+    showAuthError(friendlyAuthError(err));
+    submitBtn.disabled = false;
+  }
+}
+
+function friendlyAuthError(err){
+  const map = {
+    'auth/email-already-in-use': 'An account with this email already exists. Try logging in instead.',
+    'auth/invalid-email': 'Please enter a valid email address.',
+    'auth/weak-password': 'Password should be at least 6 characters.',
+    'auth/user-not-found': 'No account found with this email.',
+    'auth/wrong-password': 'Incorrect password. Please try again.',
+    'auth/invalid-credential': 'Incorrect email or password.',
+    'auth/too-many-requests': 'Too many attempts. Please wait a moment and try again.'
+  };
+  return map[err.code] || ('Something went wrong: ' + err.message);
+}
+
+function handleLogout(){
+  if(unsubOrders) unsubOrders();
+  auth.signOut().then(() => window.location.reload());
+}
+
+// =====================================================================
+// ===== DASHBOARD VIEW LOGIC =====
+// =====================================================================
+let currentUid = null;
+let currentShopId = null;
+let unsubOrders = null;
+
+async function initDashboard(user){
+  currentUid = user.uid;
+
+  const userDoc = await db.collection('users').doc(user.uid).get();
+  if(!userDoc.exists){
+    document.getElementById('loadingScreen').innerHTML = `
+      <div class="icon">⚠️</div>
+      <div class="title">No shop found</div>
+      <div class="sub">This account isn't linked to a shop. Please contact support.</div>
+    `;
+    document.getElementById('loadingScreen').style.display = 'block';
+    return;
+  }
+  currentShopId = userDoc.data().shopId;
+
+  const shopDoc = await db.collection('shops').doc(currentShopId).get();
+  document.getElementById('shopNameDisplay').textContent = shopDoc.data().shopName || 'Owner Dashboard';
+
+  showView('dashboard');
+  startOrdersListener();
+}
+
+function switchTab(tab){
+  document.querySelectorAll('.tab-page').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+  document.getElementById('page' + tab.charAt(0).toUpperCase() + tab.slice(1)).classList.add('active');
+  document.getElementById('tabBtn' + tab.charAt(0).toUpperCase() + tab.slice(1)).classList.add('active');
+
+  if(tab === 'menu') loadProducts();
+  if(tab === 'qr') loadQrCodes();
+}
+
+function startOrdersListener(){
+  const ordersRef = db.collection('shops').doc(currentShopId).collection('orders').orderBy('createdAt', 'desc');
+  unsubOrders = ordersRef.onSnapshot(snapshot => {
+    const orders = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    renderOrders(orders);
+  }, err => console.error('Orders listener error:', err));
+}
+
+function setStatus(orderId, status){
+  db.collection('shops').doc(currentShopId).collection('orders').doc(orderId).update({ status });
+}
+
+function acceptOrder(orderId){ setStatus(orderId, 'new'); }
+
+function rejectOrder(orderId){
+  if(confirm('Reject this order? It will be removed from the list.')){
+    db.collection('shops').doc(currentShopId).collection('orders').doc(orderId).delete();
+  }
+}
+
+function orderMetaLabel(order){
+  const time = order.createdAt ? order.createdAt.toDate().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : '';
+  if(order.orderType === 'takeaway') return `🛍 Takeaway · ${time}`;
+  return `🍽 Table ${order.table} · ${time}`;
+}
+
+function renderOrders(orders){
+  const activeOrders = orders.filter(o => o.status === 'new' || o.status === 'making');
+
+  document.getElementById('statPending').textContent = orders.filter(o => o.status === 'pending').length;
+  document.getElementById('statQueue').textContent = activeOrders.length;
+  document.getElementById('statDineIn').textContent = activeOrders.filter(o => o.orderType !== 'takeaway').length;
+  document.getElementById('statTakeaway').textContent = activeOrders.filter(o => o.orderType === 'takeaway').length;
+  document.getElementById('salesBanner').textContent = "Today's Sales: Rs " + orders.filter(o => o.status !== 'pending').reduce((s,o) => s + (o.total||0), 0);
+
+  const list = document.getElementById('ordersList');
+
+  if(orders.length === 0){
+    list.innerHTML = `<div class="empty-state"><div class="empty-icon">🍵</div><div>No orders yet. Waiting for customers...</div></div>`;
+    return;
+  }
+
+  let queuePosition = 0;
+
+  list.innerHTML = orders.map(order => {
+    const itemLines = (order.items||[]).map(i =>
+      `<div class="order-line"><span>${i.name} × ${i.qty}</span><span>Rs ${i.price*i.qty}</span></div>`
+    ).join('');
+
+    if(order.status === 'pending'){
+      return `
+        <div class="order-card pending-card">
+          <div class="pending-banner">⏳ Waiting for your approval</div>
+          <div class="order-top">
+            <div>
+              <div class="order-id">#${order.shortCode} — ${order.name}</div>
+              <div class="order-meta">${orderMetaLabel(order)}</div>
+            </div>
+            <div class="status-pill status-pending">Pending</div>
+          </div>
+          <div class="order-items">${itemLines}</div>
+          <div class="order-total"><span>Total</span><span>Rs ${order.total}</span></div>
+          <div class="approve-row">
+            <button class="reject-btn" onclick="rejectOrder('${order.id}')">Reject</button>
+            <button class="approve-btn" onclick="acceptOrder('${order.id}')">Accept Order</button>
+          </div>
+        </div>
+      `;
+    }
+
+    if(order.status === 'new' || order.status === 'making') queuePosition++;
+
+    const statusClass = order.status === 'new' ? 'status-new' : order.status === 'making' ? 'status-making' : 'status-done';
+    const statusLabel = order.status === 'new' ? 'Accepted' : order.status === 'making' ? 'Making' : 'Done';
+    const queueTag = (order.status === 'new' || order.status === 'making') ? `<span class="queue-tag">Queue #${queuePosition}</span>` : '';
+
+    return `
+      <div class="order-card">
+        <div class="order-top">
+          <div>
+            <div class="order-id">#${order.shortCode} — ${order.name} ${queueTag}</div>
+            <div class="order-meta">${orderMetaLabel(order)}</div>
+          </div>
+          <div class="status-pill ${statusClass}">${statusLabel}</div>
+        </div>
+        <div class="order-items">${itemLines}</div>
+        <div class="order-total"><span>Total</span><span>Rs ${order.total}</span></div>
+        <div class="order-actions">
+          <button class="action-btn ${order.status==='making' ? 'active-making' : ''}" onclick="setStatus('${order.id}','making')">Mark Making</button>
+          <button class="action-btn ${order.status==='done' ? 'active-done' : ''}" onclick="setStatus('${order.id}','done')">Mark Done</button>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+async function loadProducts(){
+  const snapshot = await db.collection('shops').doc(currentShopId).collection('products').get();
+  const products = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  renderProducts(products);
+}
+
+function renderProducts(products){
+  const list = document.getElementById('productList');
+
+  if(products.length === 0){
+    list.innerHTML = `<div class="empty-state-small">No products yet. Tap "+ Add Product" to create your menu.</div>`;
+    return;
+  }
+
+  list.innerHTML = products.map(p => `
+    <div class="product-card" style="${p.active === false ? 'opacity:0.5;' : ''}">
+      <div class="product-info">
+        <div class="pname">${p.name}</div>
+        <div class="pcat">${p.cat}</div>
+        ${p.desc ? `<div class="pdesc">${p.desc}</div>` : ''}
+        <div class="pprice">Rs ${p.price}</div>
+      </div>
+      <div class="product-actions">
+        <button class="pact-btn" onclick='openProductForm(${JSON.stringify(p.id)})'>Edit</button>
+        <button class="pact-btn ${p.active === false ? '' : 'toggle-off'}" onclick="toggleProductActive('${p.id}', ${p.active === false})">${p.active === false ? 'Enable' : 'Disable'}</button>
+        <button class="pact-btn danger" onclick="deleteProduct('${p.id}')">Delete</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+async function openProductForm(productId){
+  let existing = null;
+  if(productId){
+    const doc = await db.collection('shops').doc(currentShopId).collection('products').doc(productId).get();
+    existing = { id: doc.id, ...doc.data() };
+  }
+
+  const sheet = document.getElementById('formSheetContent');
+  sheet.innerHTML = `
+    <h3>${existing ? 'Edit Product' : 'Add New Product'}</h3>
+    <div class="form-field"><label>Product Name</label><input type="text" id="pfName" value="${existing ? existing.name : ''}" placeholder="e.g. Chicken Biryani"></div>
+    <div class="form-field"><label>Category</label><input type="text" id="pfCat" value="${existing ? existing.cat : ''}" placeholder="e.g. Main, Snacks, Beverages"></div>
+    <div class="form-field"><label>Description (optional)</label><input type="text" id="pfDesc" value="${existing ? (existing.desc || '') : ''}" placeholder="Short description"></div>
+    <div class="form-field"><label>Price (Rs)</label><input type="number" id="pfPrice" value="${existing ? existing.price : ''}" min="0" placeholder="e.g. 250"></div>
+    <button class="form-save-btn" onclick='saveProductForm(${existing ? JSON.stringify(existing.id) : "null"})'>${existing ? 'Save Changes' : 'Add Product'}</button>
+    <div class="form-cancel" onclick="closeForm()">Cancel</div>
+  `;
+  document.getElementById('formOverlay').classList.add('show');
+}
+
+async function saveProductForm(productId){
+  const name = document.getElementById('pfName').value.trim();
+  const cat = document.getElementById('pfCat').value.trim() || 'Other';
+  const desc = document.getElementById('pfDesc').value.trim();
+  const price = parseFloat(document.getElementById('pfPrice').value) || 0;
+
+  if(!name){ alert('Please enter a product name.'); return; }
+
+  const productsRef = db.collection('shops').doc(currentShopId).collection('products');
+
+  if(productId){
+    await productsRef.doc(productId).update({ name, cat, desc, price });
+  } else {
+    await productsRef.add({ name, cat, desc, price, active:true });
+  }
+
+  closeForm();
+  loadProducts();
+}
+
+async function toggleProductActive(id, currentlyDisabled){
+  await db.collection('shops').doc(currentShopId).collection('products').doc(id).update({ active: currentlyDisabled });
+  loadProducts();
+}
+
+async function deleteProduct(id){
+  if(confirm('Delete this product? This cannot be undone.')){
+    await db.collection('shops').doc(currentShopId).collection('products').doc(id).delete();
+    loadProducts();
+  }
+}
+
+function closeForm(){
+  document.getElementById('formOverlay').classList.remove('show');
+}
+
+function getBaseOrderUrl(){
+  // Same page, just without any existing query string —
+  // the customer link will be this exact file + ?shop=...&table=...&key=...
+  return window.location.origin + window.location.pathname;
+}
+
+async function generateAllQrCodes(){
+  const count = parseInt(document.getElementById('tableCountInput').value) || 1;
+  const tablesRef = db.collection('shops').doc(currentShopId).collection('tables');
+
+  for(let i = 1; i <= count; i++){
+    const docRef = tablesRef.doc(String(i));
+    const existing = await docRef.get();
+    if(!existing.exists){
+      await docRef.set({ key: generateRandomKey() });
+    }
+  }
+
+  loadQrCodes();
+}
+
+async function loadQrCodes(){
+  const area = document.getElementById('qrCodesArea');
+  area.innerHTML = '<div class="empty-state-small">Loading QR codes…</div>';
+
+  const baseUrl = getBaseOrderUrl();
+  const tablesSnap = await db.collection('shops').doc(currentShopId).collection('tables').get();
+  const shopDoc = await db.collection('shops').doc(currentShopId).get();
+  const takeawayKey = shopDoc.data().takeawayKey;
+
+  area.innerHTML = '';
+
+  if(tablesSnap.empty){
+    area.innerHTML = `<div class="empty-state-small">No QR codes yet. Enter your table count above and tap "Generate QR Codes".</div>`;
+  } else {
+    const dineInTitle = document.createElement('div');
+    dineInTitle.className = 'qr-section-title';
+    dineInTitle.textContent = '🍽 Dine-in Tables';
+    area.appendChild(dineInTitle);
+
+    const grid = document.createElement('div');
+    grid.className = 'qr-grid';
+    area.appendChild(grid);
+
+    const tables = tablesSnap.docs
+      .map(doc => ({ num: doc.id, key: doc.data().key }))
+      .sort((a,b) => parseInt(a.num) - parseInt(b.num));
+
+    tables.forEach(t => {
+      const url = `${baseUrl}?shop=${currentShopId}&table=${t.num}&key=${t.key}`;
+      const card = document.createElement('div');
+      card.className = 'qr-card';
+      card.innerHTML = `<div class="qr-canvas" id="qr-table-${t.num}"></div><div class="qr-label">Table ${t.num}</div><div class="qr-sub">${url}</div>`;
+      grid.appendChild(card);
+      new QRCode(document.getElementById(`qr-table-${t.num}`), { text: url, width:140, height:140 });
+    });
+  }
+
+  const takeawayTitle = document.createElement('div');
+  takeawayTitle.className = 'qr-section-title';
+  takeawayTitle.textContent = '🛍 Takeaway Counter';
+  area.appendChild(takeawayTitle);
+
+  const takeawayUrl = `${baseUrl}?shop=${currentShopId}&type=takeaway&key=${takeawayKey}`;
+  const takeawayGrid = document.createElement('div');
+  takeawayGrid.className = 'qr-grid';
+  area.appendChild(takeawayGrid);
+
+  const takeawayCard = document.createElement('div');
+  takeawayCard.className = 'qr-card takeaway';
+  takeawayCard.innerHTML = `<div class="qr-canvas" id="qr-takeaway"></div><div class="qr-label">Takeaway</div><div class="qr-sub">${takeawayUrl}</div>`;
+  takeawayGrid.appendChild(takeawayCard);
+  new QRCode(document.getElementById('qr-takeaway'), { text: takeawayUrl, width:140, height:140 });
+
+  const printBtn = document.createElement('button');
+  printBtn.className = 'qr-print-btn';
+  printBtn.textContent = '🖨 Print All QR Codes';
+  printBtn.onclick = () => window.print();
+  area.appendChild(printBtn);
+}
+
+// =====================================================================
+// ===== CUSTOMER VIEW LOGIC =====
+// =====================================================================
+let MENU = [];
+let cart = {};
+let selectedOrderType = 'dinein';
+let custShopId = null;
+let qrResult = { verified:false, locked:false };
+let statusPollUnsub = null;
+
+function showFatalCustomerError(title, sub){
+  document.getElementById('loadingScreen').innerHTML = `
+    <div class="icon">⚠️</div>
+    <div class="title">${title}</div>
+    <div class="sub">${sub}</div>
+  `;
+  document.getElementById('loadingScreen').style.display = 'block';
+  document.querySelectorAll('.view').forEach(el => el.classList.remove('active'));
+}
+
+async function initCustomerView(){
+  const params = new URLSearchParams(window.location.search);
+  custShopId = params.get('shop');
+  const tableParam = params.get('table');
+  const typeParam = params.get('type');
+  const keyParam = params.get('key');
+
+  if(!custShopId){
+    showFatalCustomerError('Missing shop link', 'This link is incomplete. Please scan the QR code at your table again.');
+    return;
+  }
+
+  const shopDoc = await db.collection('shops').doc(custShopId).get();
+  if(!shopDoc.exists){
+    showFatalCustomerError('Shop not found', "This link doesn't point to a valid shop.");
+    return;
+  }
+
+  document.getElementById('custShopNameDisplay').textContent = shopDoc.data().shopName || 'Order Menu';
+  document.getElementById('custShopTagDisplay').textContent = shopDoc.data().shopTagline || '';
+
+  if(typeParam === 'takeaway'){
+    const validKey = shopDoc.data().takeawayKey;
+    if(validKey && keyParam === validKey){
+      qrResult = { verified:true, locked:true, orderType:'takeaway' };
+      selectedOrderType = 'takeaway';
+    } else {
+      showFatalCustomerError("This link isn't valid", "This QR code couldn't be verified. Please scan the QR code at the counter again.");
+      return;
+    }
+  } else if(tableParam){
+    const tableDoc = await db.collection('shops').doc(custShopId).collection('tables').doc(tableParam).get();
+    if(tableDoc.exists && tableDoc.data().key === keyParam){
+      qrResult = { verified:true, locked:true, orderType:'dinein', table:tableParam };
+      selectedOrderType = 'dinein';
+    } else {
+      showFatalCustomerError("This link isn't valid", "This QR code couldn't be verified. Please scan the QR code at your table again.");
+      return;
+    }
+  } else {
+    showFatalCustomerError('Missing table info', 'This link is incomplete. Please scan the QR code at your table again.');
+    return;
+  }
+
+  await loadCustomerMenu();
+  showView('customer');
+}
+
+async function loadCustomerMenu(){
+  const snapshot = await db.collection('shops').doc(custShopId).collection('products').where('active', '==', true).get();
+  MENU = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  renderMenu();
+}
+
+function renderMenu(){
+  const main = document.getElementById('menu');
+  main.innerHTML = '';
+
+  if(MENU.length === 0){
+    main.innerHTML = `<div style="text-align:center;padding:60px 20px;color:#9A8870;">This shop hasn't added any menu items yet.</div>`;
+    updateCartBar();
+    return;
+  }
+
+  let lastCat = '';
+  MENU.forEach(item => {
+    if(item.cat !== lastCat){
+      const label = document.createElement('div');
+      label.className = 'category-label';
+      label.textContent = item.cat;
+      main.appendChild(label);
+      lastCat = item.cat;
+    }
+    const qty = cart[item.id] || 0;
+    const el = document.createElement('div');
+    el.className = 'item';
+    el.innerHTML = `
+      <div class="item-info">
+        <div class="item-name">${item.name}</div>
+        <div class="item-desc">${item.desc || ''}</div>
+        <div class="item-price">Rs ${item.price}</div>
+      </div>
+      <div class="qty-control" id="qty-${item.id}">
+        ${qty === 0
+          ? `<button class="add-btn" onclick="changeQty('${item.id}',1)">Add</button>`
+          : `<button class="qty-btn" onclick="changeQty('${item.id}',-1)">–</button>
+             <span class="qty-num">${qty}</span>
+             <button class="qty-btn" onclick="changeQty('${item.id}',1)">+</button>`
+        }
+      </div>
+    `;
+    main.appendChild(el);
+  });
+  updateCartBar();
+}
+
+function changeQty(id, delta){
+  cart[id] = (cart[id] || 0) + delta;
+  if(cart[id] <= 0) delete cart[id];
+  renderMenu();
+}
+
+function cartTotalAmount(){
+  return Object.entries(cart).reduce((sum,[id,qty]) => {
+    const item = MENU.find(m => m.id === id);
+    return sum + item.price * qty;
+  }, 0);
+}
+
+function cartTotalCount(){
+  return Object.values(cart).reduce((a,b) => a+b, 0);
+}
+
+function updateCartBar(){
+  const bar = document.getElementById('cartBar');
+  const count = cartTotalCount();
+  document.getElementById('cartCount').textContent = count;
+  document.getElementById('cartTotal').textContent = cartTotalAmount();
+  bar.classList.toggle('show', count > 0);
+}
+
+function openCart(){
+  const sheet = document.getElementById('custSheetContent');
+  const lines = Object.entries(cart).map(([id,qty]) => {
+    const item = MENU.find(m => m.id === id);
+    return `<div class="sheet-item"><span>${item.name} × ${qty}</span><span>Rs ${item.price*qty}</span></div>`;
+  }).join('');
+
+  const locked = qrResult.locked;
+
+  const orderTypeBlock = locked
+    ? `<div class="field"><label>Order Type</label><div class="locked-type-badge">${selectedOrderType === 'takeaway' ? '🛍 Takeaway (verified from QR code)' : '🍽 Dine-in — Table ' + qrResult.table + ' (verified from QR code)'}</div></div>`
+    : `<div class="field"><label>Order Type</label><div class="type-toggle">
+         <button type="button" class="type-btn active" id="typeDineIn" onclick="selectOrderType('dinein')">🍽 Dine-in</button>
+         <button type="button" class="type-btn" id="typeTakeaway" onclick="selectOrderType('takeaway')">🛍 Takeaway</button>
+       </div></div>`;
+
+  sheet.innerHTML = `
+    <div class="sheet-title">Your Order</div>
+    ${lines}
+    <div class="sheet-total"><span>Total</span><span>Rs ${cartTotalAmount()}</span></div>
+    ${orderTypeBlock}
+    <div class="field"><label>Your Name</label><input type="text" id="custName" placeholder="e.g. Ahmed"></div>
+    <button class="place-order-btn" id="placeBtn" onclick="placeOrder()">Place Order — Rs ${cartTotalAmount()}</button>
+    <div class="close-sheet" onclick="closeCustSheet()">Cancel</div>
+  `;
+  document.getElementById('custOverlay').classList.add('show');
+}
+
+function selectOrderType(type){
+  selectedOrderType = type;
+  document.getElementById('typeDineIn').classList.toggle('active', type === 'dinein');
+  document.getElementById('typeTakeaway').classList.toggle('active', type === 'takeaway');
+}
+
+function closeCustSheet(){
+  document.getElementById('custOverlay').classList.remove('show');
+}
+
+async function placeOrder(){
+  const placeBtn = document.getElementById('placeBtn');
+  placeBtn.disabled = true;
+  placeBtn.textContent = 'Placing order…';
+
+  const name = document.getElementById('custName').value.trim() || 'Guest';
+  const table = selectedOrderType === 'dinein' ? qrResult.table : null;
+  const shortCode = Math.floor(1000 + Math.random()*9000);
+
+  const order = {
+    shortCode, name, table,
+    orderType: selectedOrderType,
+    items: Object.entries(cart).map(([id,qty]) => {
+      const item = MENU.find(m => m.id === id);
+      return { name:item.name, qty, price:item.price };
+    }),
+    total: cartTotalAmount(),
+    status: 'pending',
+    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+  };
+
+  const docRef = await db.collection('shops').doc(custShopId).collection('orders').add(order);
+  showStatusScreen(docRef.id, shortCode);
+}
+
+const STATUS_INFO = {
+  pending:  { icon:'⏳', title:'Order Sent!',    sub:'Waiting for the shop to confirm your order' },
+  new:      { icon:'👍', title:'Order Accepted', sub:'The kitchen will start preparing it soon' },
+  making:   { icon:'🍳', title:'Being Prepared', sub:'Your order is being cooked right now' },
+  done:     { icon:'✅', title:'Ready!',         sub:'Your order is ready' }
+};
+
+function getStatusInfo(status, orderType){
+  const info = { ...(STATUS_INFO[status] || STATUS_INFO.pending) };
+  if(status === 'done'){
+    info.sub = orderType === 'takeaway'
+      ? 'Your order is ready — please come and collect it from the counter'
+      : 'Your order is ready and will be served to your table shortly';
+  }
+  return info;
+}
+
+function showStatusScreen(orderDocId, shortCode){
+  document.getElementById('custOverlay').classList.add('show');
+
+  if(statusPollUnsub) statusPollUnsub();
+
+  statusPollUnsub = db.collection('shops').doc(custShopId).collection('orders').doc(orderDocId)
+    .onSnapshot(doc => {
+      if(!doc.exists){
+        renderStatusNotFound();
+        return;
+      }
+      renderStatusScreen(doc.data(), shortCode);
+    });
+}
+
+let lastVibratedStatus = null;
+
+function renderStatusScreen(order, shortCode){
+  const sheet = document.getElementById('custSheetContent');
+
+  if(order.status === 'done' && lastVibratedStatus !== 'done'){
+    lastVibratedStatus = 'done';
+    if(navigator.vibrate) navigator.vibrate([200, 100, 200]);
+  }
+
+  const info = getStatusInfo(order.status, order.orderType);
+  const readyClass = order.status === 'done' ? 'status-ready' : '';
+
+  sheet.innerHTML = `
+    <div class="confirm-screen ${readyClass}">
+      <div class="confirm-icon">${info.icon}</div>
+      <div class="confirm-title">${info.title}</div>
+      <div class="confirm-sub">${info.sub}</div>
+      <div class="order-id">#${shortCode}</div>
+      <div class="status-track">
+        <div class="track-step ${order.status !== 'pending' ? 'done' : 'active'}">Sent</div>
+        <div class="track-step ${order.status === 'making' || order.status === 'done' ? 'done' : (order.status === 'new' ? 'active' : '')}">Accepted</div>
+        <div class="track-step ${order.status === 'done' ? 'done' : (order.status === 'making' ? 'active' : '')}">Making</div>
+        <div class="track-step ${order.status === 'done' ? 'active' : ''}">Ready</div>
+      </div>
+      <button class="new-order-btn" onclick="finishOrder()">Place Another Order</button>
+    </div>
+  `;
+}
+
+function renderStatusNotFound(){
+  const sheet = document.getElementById('custSheetContent');
+  sheet.innerHTML = `
+    <div class="confirm-screen">
+      <div class="confirm-icon">❓</div>
+      <div class="confirm-title">Order Not Found</div>
+      <div class="confirm-sub">This order may have been removed</div>
+      <button class="new-order-btn" onclick="finishOrder()">Place New Order</button>
+    </div>
+  `;
+}
+
+function finishOrder(){
+  if(statusPollUnsub) statusPollUnsub();
+  cart = {};
+  renderMenu();
+  closeCustSheet();
+}
+</script>
+
+</body>
+</html>

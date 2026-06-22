@@ -546,10 +546,17 @@ async function handleAuthSubmit(e){
 
       await db.collection('users').doc(uid).set({ shopId: shopRef.id });
 
-      await initDashboard(cred.user);
+      // NOTE: we deliberately do NOT call initDashboard() here.
+      // Creating/signing in the user already triggers Firebase's
+      // onAuthStateChanged listener (registered below), which calls
+      // initDashboard() on its own. Calling it again manually here
+      // caused a race condition — two parallel initDashboard runs
+      // could leave the login view and dashboard view both visible
+      // at once. The listener alone is sufficient.
+      setLoadingText('Setting up your shop…');
     } else {
-      const cred = await auth.signInWithEmailAndPassword(email, password);
-      await initDashboard(cred.user);
+      await auth.signInWithEmailAndPassword(email, password);
+      setLoadingText('Logging in…');
     }
   } catch(err){
     showAuthError(friendlyAuthError(err));
@@ -582,26 +589,48 @@ let currentUid = null;
 let currentShopId = null;
 let unsubOrders = null;
 
+function setLoadingText(msg){
+  document.querySelectorAll('.view').forEach(el => el.classList.remove('active'));
+  const el = document.getElementById('loadingScreen');
+  el.style.display = 'block';
+  el.innerHTML = `<div class="icon">⏳</div><div class="title">${msg}</div>`;
+}
+
+function setLoadingError(title, sub){
+  document.querySelectorAll('.view').forEach(el => el.classList.remove('active'));
+  const el = document.getElementById('loadingScreen');
+  el.style.display = 'block';
+  el.innerHTML = `<div class="icon">⚠️</div><div class="title">${title}</div><div class="sub">${sub}</div>`;
+}
+
 async function initDashboard(user){
-  currentUid = user.uid;
+  try {
+    setLoadingText('Checking your account…');
+    currentUid = user.uid;
 
-  const userDoc = await db.collection('users').doc(user.uid).get();
-  if(!userDoc.exists){
-    document.getElementById('loadingScreen').innerHTML = `
-      <div class="icon">⚠️</div>
-      <div class="title">No shop found</div>
-      <div class="sub">This account isn't linked to a shop. Please contact support.</div>
-    `;
-    document.getElementById('loadingScreen').style.display = 'block';
-    return;
+    const userDoc = await db.collection('users').doc(user.uid).get();
+    if(!userDoc.exists){
+      setLoadingError('No shop found', "This account isn't linked to a shop. Please contact support.");
+      return;
+    }
+    currentShopId = userDoc.data().shopId;
+
+    setLoadingText('Loading your shop…');
+    const shopDoc = await db.collection('shops').doc(currentShopId).get();
+
+    if(!shopDoc.exists){
+      setLoadingError('Shop data missing', "Your shop record couldn't be found. Please contact support.");
+      return;
+    }
+
+    document.getElementById('shopNameDisplay').textContent = shopDoc.data().shopName || 'Owner Dashboard';
+
+    showView('dashboard');
+    startOrdersListener();
+  } catch(err){
+    console.error('Dashboard load error:', err);
+    setLoadingError('Something went wrong', err.message || 'Please try logging in again.');
   }
-  currentShopId = userDoc.data().shopId;
-
-  const shopDoc = await db.collection('shops').doc(currentShopId).get();
-  document.getElementById('shopNameDisplay').textContent = shopDoc.data().shopName || 'Owner Dashboard';
-
-  showView('dashboard');
-  startOrdersListener();
 }
 
 function switchTab(tab){

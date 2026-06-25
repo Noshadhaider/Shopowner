@@ -1,11 +1,9 @@
 <?php
 session_start();
 
- 
 if (!isset($_SESSION['high_score'])) {
     $_SESSION['high_score'] = 0;
 }
-
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'save_score') {
     $current_score = isset($_POST['score']) ? intval($_POST['score']) : 0;
@@ -28,7 +26,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Neon Retro Joystick Arcade</title>
+    <title>Cyber Neon Hunt</title>
     <style>
         * {
             box-sizing: border-box;
@@ -37,6 +35,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             user-select: none;
             -webkit-user-select: none;
         }
+
         body {
             background-color: #090a0f;
             color: #ffffff;
@@ -48,15 +47,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             justify-content: center;
             min-height: 100vh;
         }
+
         .game-container {
             width: 100%;
             max-width: 480px;
             padding: 15px;
             text-align: center;
         }
-        header {
-            margin-bottom: 10px;
-        }
+
         h1 {
             font-size: 24px;
             font-weight: 800;
@@ -64,26 +62,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             color: #00f0ff;
             text-shadow: 0 0 10px rgba(0, 240, 255, 0.6);
             text-transform: uppercase;
+            margin-bottom: 10px;
         }
+
         .dashboard {
             display: flex;
             justify-content: space-between;
             background: rgba(255, 255, 255, 0.03);
-            border: 1px solid rgba(0, 240, 255, 0.1);
+            border: 1px solid rgba(0, 240, 255, 0.15);
             padding: 8px 15px;
             border-radius: 8px;
             margin-bottom: 12px;
             font-size: 14px;
             font-weight: bold;
         }
+
         .score-box {
             color: #ff007f;
             text-shadow: 0 0 8px rgba(255, 0, 127, 0.5);
         }
+
         .high-score-box {
             color: #ffcc00;
             text-shadow: 0 0 8px rgba(255, 204, 0, 0.5);
         }
+
         canvas {
             background: #11131e;
             display: block;
@@ -94,13 +97,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             max-width: 100%;
             touch-action: none;
         }
-        /* Virtual Joystick CSS styling */
+
         .joystick-wrapper {
             margin-top: 25px;
             display: flex;
             justify-content: center;
             align-items: center;
         }
+
         #joystick-container {
             position: relative;
             width: 130px;
@@ -111,6 +115,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             box-shadow: 0 0 15px rgba(0, 240, 255, 0.15), inset 0 0 15px rgba(0, 240, 255, 0.1);
             touch-action: none;
         }
+
         #joystick-knob {
             position: absolute;
             width: 46px;
@@ -122,12 +127,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             left: 39px;
             box-shadow: 0 0 12px rgba(255, 0, 127, 0.8);
             cursor: grab;
-            transition: transform 0.05s linear;
         }
+
         #joystick-knob:active {
             cursor: grabbing;
-            background: radial-gradient(circle, #ff3399 0%, #ff007f 100%);
         }
+
         .instructions {
             font-size: 11px;
             color: #666a80;
@@ -135,193 +140,225 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             text-transform: uppercase;
             letter-spacing: 1px;
         }
+
+        /* New Record Flash */
+        #new-record-msg {
+            display: none;
+            color: #ffcc00;
+            font-size: 13px;
+            font-weight: bold;
+            margin-top: 6px;
+            text-shadow: 0 0 8px rgba(255, 204, 0, 0.7);
+            animation: blink 0.5s step-start infinite;
+        }
+
+        @keyframes blink {
+            50% { opacity: 0; }
+        }
     </style>
 </head>
 <body>
 
 <div class="game-container">
-    <header>
-        <h1>Cyber Neon Hunt</h1>
-    </header>
+    <h1>Cyber Neon Hunt</h1>
 
     <div class="dashboard">
         <div class="score-box">COINS: <span id="current-score">0</span></div>
         <div class="high-score-box">BEST: <span id="high-score"><?php echo $_SESSION['high_score']; ?></span></div>
     </div>
 
-    <!-- Canvas viewport -->
     <canvas id="gameViewport" width="400" height="400"></canvas>
 
-    <!-- Custom Digital Joystick Container -->
+    <div id="new-record-msg">🏆 NEW RECORD!</div>
+
     <div class="joystick-wrapper">
         <div id="joystick-container">
             <div id="joystick-knob"></div>
         </div>
     </div>
-    
-    <div class="instructions">Drag Joystick knob or use cursor to control character</div>
+
+    <div class="instructions">Drag joystick or use arrow keys to move</div>
 </div>
 
 <script>
     const canvas = document.getElementById("gameViewport");
     const ctx = canvas.getContext("2d");
-    const scoreText = document.getElementById("current-score");
-    const highScoreText = document.getElementById("high-score");
+    const scoreEl = document.getElementById("current-score");
+    const highScoreEl = document.getElementById("high-score");
+    const newRecordEl = document.getElementById("new-record-msg");
 
-    // Game Metrics & Engine states
     let score = 0;
     let highScore = <?php echo $_SESSION['high_score']; ?>;
-    
-    // Configurable Entity states
-    const player = { x: 200, y: 200, radius: 10, speed: 4.5, dx: 0, dy: 0 };
-    const targetToken = { x: 0, y: 0, radius: 7 };
 
-    // Set dynamic startup location for token
+    const player = { x: 200, y: 200, radius: 12, speed: 4.5, dx: 0, dy: 0 };
+    const token = { x: 0, y: 0, radius: 8 };
+    const particles = [];
+
+    // Keyboard support
+    const keys = {};
+    window.addEventListener("keydown", e => keys[e.key] = true);
+    window.addEventListener("keyup", e => keys[e.key] = false);
+
     function randomizeToken() {
-        targetToken.x = Math.max(targetToken.radius, Math.min(canvas.width - targetToken.radius, Math.random() * canvas.width));
-        targetToken.y = Math.max(targetToken.radius, Math.min(canvas.height - targetToken.radius, Math.random() * canvas.height));
+        let nx, ny;
+        do {
+            nx = Math.random() * (canvas.width - 40) + 20;
+            ny = Math.random() * (canvas.height - 40) + 20;
+        } while (Math.hypot(nx - player.x, ny - player.y) < 80);
+        token.x = nx;
+        token.y = ny;
     }
     randomizeToken();
 
-    // Joystick Mechanics Configuration
-    const joyContainer = document.getElementById("joystick-container");
-    const joyKnob = document.getElementById("joystick-knob");
-    let isJoystickEngaged = false;
-    const maxBoundRadius = 42; // Dynamic offset limit inside container
-
-    function executeMovementLogic(pointerX, pointerY) {
-        const bounds = joyContainer.getBoundingClientRect();
-        const pivotX = bounds.left + bounds.width / 2;
-        const pivotY = bounds.top + bounds.height / 2;
-        
-        let offsetX = pointerX - pivotX;
-        let offsetY = pointerY - pivotY;
-        let magnitude = Math.sqrt(offsetX * offsetX + offsetY * offsetY);
-
-        if (magnitude > maxBoundRadius) {
-            offsetX = (offsetX / magnitude) * maxBoundRadius;
-            offsetY = (offsetY / magnitude) * maxBoundRadius;
-            magnitude = maxBoundRadius;
+    // Particle burst on coin collect
+    function spawnParticles(x, y) {
+        for (let i = 0; i < 10; i++) {
+            const angle = Math.random() * Math.PI * 2;
+            const speed = Math.random() * 3 + 1;
+            particles.push({
+                x, y,
+                dx: Math.cos(angle) * speed,
+                dy: Math.sin(angle) * speed,
+                life: 1.0,
+                color: "#ffcc00"
+            });
         }
-
-        joyKnob.style.transform = `translate(${offsetX}px, ${offsetY}px)`;
-
-        // Translate radial grid system into velocity scales for 2D map rendering
-        player.dx = (offsetX / maxBoundRadius) * player.speed;
-        player.dy = (offsetY / maxBoundRadius) * player.speed;
     }
 
-    function killJoystickEngagement() {
-        isJoystickEngaged = false;
+    // Joystick
+    const joyContainer = document.getElementById("joystick-container");
+    const joyKnob = document.getElementById("joystick-knob");
+    let joystickActive = false;
+    const maxRadius = 42;
+
+    function moveJoystick(px, py) {
+        const bounds = joyContainer.getBoundingClientRect();
+        const cx = bounds.left + bounds.width / 2;
+        const cy = bounds.top + bounds.height / 2;
+        let dx = px - cx;
+        let dy = py - cy;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist > maxRadius) {
+            dx = (dx / dist) * maxRadius;
+            dy = (dy / dist) * maxRadius;
+        }
+        joyKnob.style.transform = `translate(${dx}px, ${dy}px)`;
+        player.dx = (dx / maxRadius) * player.speed;
+        player.dy = (dy / maxRadius) * player.speed;
+    }
+
+    function resetJoystick() {
+        joystickActive = false;
         joyKnob.style.transform = "translate(0px, 0px)";
         player.dx = 0;
         player.dy = 0;
     }
 
-    // Capture Touch Hardware Layout Map Configurations
-    joyContainer.addEventListener("touchstart", (e) => { 
-        isJoystickEngaged = true; 
-        executeMovementLogic(e.touches[0].clientX, e.touches[0].clientY); 
-    }, {passive: true});
-    
-    window.addEventListener("touchmove", (e) => { 
-        if (isJoystickEngaged) executeMovementLogic(e.touches[0].clientX, e.touches[0].clientY); 
-    }, {passive: true});
-    
-    window.addEventListener("touchend", killJoystickEngagement);
+    joyContainer.addEventListener("touchstart", e => { joystickActive = true; moveJoystick(e.touches[0].clientX, e.touches[0].clientY); }, { passive: true });
+    window.addEventListener("touchmove", e => { if (joystickActive) moveJoystick(e.touches[0].clientX, e.touches[0].clientY); }, { passive: true });
+    window.addEventListener("touchend", resetJoystick);
 
-    // Desktop Mouse Fallbacks
-    joyContainer.addEventListener("mousedown", (e) => { 
-        isJoystickEngaged = true; 
-        executeMovementLogic(e.clientX, e.clientY); 
-    });
-    
-    window.addEventListener("mousemove", (e) => { 
-        if (isJoystickEngaged) executeMovementLogic(e.clientX, e.clientY); 
-    });
-    
-    window.addEventListener("mouseup", killJoystickEngagement);
+    joyContainer.addEventListener("mousedown", e => { joystickActive = true; moveJoystick(e.clientX, e.clientY); });
+    window.addEventListener("mousemove", e => { if (joystickActive) moveJoystick(e.clientX, e.clientY); });
+    window.addEventListener("mouseup", resetJoystick);
 
-    // Asynchronous network layer sync using built-in PHP API interface
-    function updateBackendScore(currentPoints) {
+    // Save score to PHP session
+    function saveScore(s) {
         const payload = new URLSearchParams();
         payload.append('action', 'save_score');
-        payload.append('score', currentPoints);
-
+        payload.append('score', s);
         fetch(window.location.href, {
             method: 'POST',
             body: payload,
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
         })
-        .then(res => res.json())
+        .then(r => r.json())
         .then(data => {
             if (data.status === 'success') {
-                highScoreText.innerText = data.current_high_score;
+                highScoreEl.innerText = data.current_high_score;
+                if (data.new_record) {
+                    newRecordEl.style.display = "block";
+                    setTimeout(() => newRecordEl.style.display = "none", 2000);
+                }
             }
         })
-        .catch(err => console.error("Error submitting server analytics data packet:", err));
+        .catch(() => {});
     }
 
-    // Central Update and Rendering Routine
+    // Pulsing animation for token
+    let tokenPulse = 0;
+
     function loop() {
-        // Player boundary transformations
-        player.x += player.dx;
-        player.y += player.dy;
+        tokenPulse += 0.08;
 
-        // Map confinement thresholds
-        if (player.x - player.radius < 0) player.x = player.radius;
-        if (player.x + player.radius > canvas.width) player.x = canvas.width - player.radius;
-        if (player.y - player.radius < 0) player.y = player.radius;
-        if (player.y + player.radius > canvas.height) player.y = canvas.height - player.radius;
+        // Keyboard movement
+        if (keys["ArrowLeft"] || keys["a"])  player.dx = -player.speed;
+        else if (keys["ArrowRight"] || keys["d"]) player.dx = player.speed;
+        else if (!joystickActive) player.dx = 0;
 
-        // Circular overlap/collision checking routine
-        const distVectorX = player.x - targetToken.x;
-        const distVectorY = player.y - targetToken.y;
-        const netDistance = Math.sqrt(distVectorX * distVectorX + distVectorY * distVectorY);
+        if (keys["ArrowUp"] || keys["w"])  player.dy = -player.speed;
+        else if (keys["ArrowDown"] || keys["s"]) player.dy = player.speed;
+        else if (!joystickActive) player.dy = 0;
 
-        if (netDistance < player.radius + targetToken.radius) {
+        // Move player
+        player.x = Math.max(player.radius, Math.min(canvas.width - player.radius, player.x + player.dx));
+        player.y = Math.max(player.radius, Math.min(canvas.height - player.radius, player.y + player.dy));
+
+        // Collision
+        if (Math.hypot(player.x - token.x, player.y - token.y) < player.radius + token.radius + 2) {
             score++;
-            scoreText.innerText = score;
+            scoreEl.innerText = score;
+            spawnParticles(token.x, token.y);
             randomizeToken();
-            updateBackendScore(score);
+            saveScore(score);
         }
 
-        // Draw Layer Pipeline
+        // Clear canvas
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-        // Grid lines effect for retro visual depth
-        ctx.strokeStyle = "rgba(0, 240, 255, 0.02)";
-        ctx.lineWidth = 1;
-        for (let i = 0; i < canvas.width; i += 25) {
-            ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, canvas.height); ctx.stroke();
-            ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(canvas.width, i); ctx.stroke();
+        // Draw particles
+        for (let i = particles.length - 1; i >= 0; i--) {
+            const p = particles[i];
+            p.x += p.dx;
+            p.y += p.dy;
+            p.life -= 0.05;
+            if (p.life <= 0) { particles.splice(i, 1); continue; }
+            ctx.globalAlpha = p.life;
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, 3, 0, Math.PI * 2);
+            ctx.fillStyle = p.color;
+            ctx.shadowBlur = 6;
+            ctx.shadowColor = p.color;
+            ctx.fill();
+            ctx.closePath();
         }
+        ctx.globalAlpha = 1;
+        ctx.shadowBlur = 0;
 
-        // Draw Player Glowing Circle
+        // Draw token (pulsing glow)
+        const pulseGlow = 10 + Math.sin(tokenPulse) * 6;
         ctx.beginPath();
-        ctx.arc(player.x, player.y, player.radius, 0, Math.PI * 2);
-        ctx.fillStyle = "#00f0ff";
-        ctx.shadowBlur = 12;
-        ctx.shadowColor = "#00f0ff";
-        ctx.fill();
-        ctx.closePath();
-
-        // Draw Token Goal Object
-        ctx.beginPath();
-        ctx.arc(targetToken.x, targetToken.y, targetToken.radius, 0, Math.PI * 2);
+        ctx.arc(token.x, token.y, token.radius, 0, Math.PI * 2);
         ctx.fillStyle = "#ffcc00";
-        ctx.shadowBlur = 15;
+        ctx.shadowBlur = pulseGlow;
         ctx.shadowColor = "#ffcc00";
         ctx.fill();
         ctx.closePath();
 
-        // Reset blur context settings to save processing headroom
+        // Draw player
+        ctx.beginPath();
+        ctx.arc(player.x, player.y, player.radius, 0, Math.PI * 2);
+        ctx.fillStyle = "#00f0ff";
+        ctx.shadowBlur = 15;
+        ctx.shadowColor = "#00f0ff";
+        ctx.fill();
+        ctx.closePath();
+
         ctx.shadowBlur = 0;
 
         requestAnimationFrame(loop);
     }
 
-    // Boot up engine instance
     loop();
 </script>
 

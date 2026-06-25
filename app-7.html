@@ -1,394 +1,329 @@
+<?php
+session_start();
+
+// Initialize High Score if not set
+if (!isset($_SESSION['high_score'])) {
+    $_SESSION['high_score'] = 0;
+}
+
+// Handle AJAX Post Request to update score
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'save_score') {
+    $current_score = isset($_POST['score']) ? intval($_POST['score']) : 0;
+    $new_record = false;
+    if ($current_score > $_SESSION['high_score']) {
+        $_SESSION['high_score'] = $current_score;
+        $new_record = true;
+    }
+    header('Content-Type: application/json');
+    echo json_encode([
+        'status' => 'success',
+        'current_high_score' => $_SESSION['high_score'],
+        'new_record' => $new_record
+    ]);
+    exit;
+}
+?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Shop Order System</title>
-<style>
-  @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Manrope:wght@400;500;600;700&display=swap');
-
-  :root{
-    --cream:#FBF4E6;
-    --ink:#2B2118;
-    --terracotta:#C1582B;
-    --terracotta-dark:#9E4521;
-    --leaf:#5B7A4F;
-    --line:#E3D5BC;
-    --card:#FFFDF8;
-    --pending:#A33B3B;
-    --new:#C1582B;
-    --making:#B98A2E;
-    --done:#5B7A4F;
-    --error:#A33B3B;
-  }
-
-  *{box-sizing:border-box; margin:0; padding:0;}
-
-  body{
-    background:var(--cream);
-    color:var(--ink);
-    font-family:'Manrope', sans-serif;
-    min-height:100vh;
-  }
-
-  .view{ display:none; }
-  .view.active{ display:block; }
-
-  /* ===== Shared / loading / error ===== */
-  .full-error{ max-width:420px; margin:60px auto; padding:0 24px; text-align:center; }
-  .full-error .icon{ font-size:46px; margin-bottom:12px; }
-  .full-error .title{ font-family:'Fraunces',serif; font-weight:700; font-size:22px; color:var(--ink); margin-bottom:8px; }
-  .full-error .sub{ font-size:14px; color:#8A7860; }
-
-  /* ===== LOGIN VIEW ===== */
-  #view-login{
-    min-height:100vh;
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    padding:24px;
-  }
-
-  .auth-card{
-    background:var(--card);
-    border:1.5px solid var(--line);
-    border-radius:18px;
-    padding:32px 26px;
-    max-width:380px;
-    width:100%;
-  }
-
-  .brand{ text-align:center; margin-bottom:24px; }
-  .brand-icon{ font-size:38px; margin-bottom:8px; }
-  .brand-title{ font-family:'Fraunces', serif; font-weight:700; font-size:22px; }
-  .brand-sub{ font-size:13px; color:#8A7860; margin-top:4px; }
-
-  .mode-toggle{ display:flex; gap:6px; margin-bottom:22px; background:#F0E8D8; border-radius:10px; padding:4px; }
-  .mode-btn{
-    flex:1; padding:9px; border:none; background:none; border-radius:8px;
-    font-size:13.5px; font-weight:700; color:#9A8870; cursor:pointer; font-family:'Manrope', sans-serif;
-  }
-  .mode-btn.active{ background:var(--card); color:var(--ink); }
-
-  .field{ margin-bottom:14px; }
-  .field label{
-    font-size:12px; font-weight:600; color:#8A7860; text-transform:uppercase;
-    letter-spacing:0.04em; display:block; margin-bottom:6px;
-  }
-  .field input{
-    width:100%; border:1.5px solid var(--line); border-radius:10px; padding:11px 12px;
-    font-family:'Manrope', sans-serif; font-size:14px; background:white;
-  }
-
-  .submit-btn{
-    width:100%; background:var(--terracotta); color:white; border:none; border-radius:12px;
-    padding:14px; font-size:14.5px; font-weight:700; margin-top:6px; cursor:pointer;
-  }
-  .submit-btn:disabled{ opacity:0.6; cursor:not-allowed; }
-
-  .error-msg{
-    background:#FFF1EF; border:1.5px solid var(--error); color:var(--error); border-radius:10px;
-    padding:10px 12px; font-size:13px; margin-bottom:14px; display:none;
-  }
-  .error-msg.show{ display:block; }
-
-  .signup-only{ display:none; }
-  .signup-only.show{ display:block; }
-
-  .hint{ font-size:11.5px; color:#9A8870; margin-top:8px; text-align:center; }
-
-  /* ===== DASHBOARD VIEW ===== */
-  #view-dashboard header{
-    padding:24px 20px 18px; background:var(--ink); color:var(--cream);
-    display:flex; justify-content:space-between; align-items:flex-start;
-  }
-  .dash-title{ font-family:'Fraunces', serif; font-weight:700; font-size:22px; }
-  .dash-sub{ font-size:13px; color:#C9A876; margin-top:3px; }
-  .logout-btn{
-    background:none; border:1.5px solid #6B5C48; color:var(--cream); border-radius:8px;
-    padding:7px 12px; font-size:12px; font-weight:600; cursor:pointer; font-family:'Manrope', sans-serif;
-  }
-
-  .stats-row{ display:grid; grid-template-columns:1fr 1fr; gap:10px; padding:16px 16px 0; max-width:640px; margin:0 auto; }
-  .stat-box{ background:var(--card); border:1.5px solid var(--line); border-radius:12px; padding:12px 14px; text-align:center; }
-  .stat-num{ font-family:'Fraunces', serif; font-weight:700; font-size:22px; color:var(--terracotta-dark); }
-  .stat-label{ font-size:11px; color:#9A8870; margin-top:2px; text-transform:uppercase; letter-spacing:0.03em; }
-
-  .sales-banner{ max-width:640px; margin:14px auto 0; padding:0 16px; font-size:13px; font-weight:600; color:#8A7860; text-align:right; }
-
-  #view-dashboard main, #view-customer main{ padding:16px; max-width:640px; margin:0 auto; }
-
-  .empty-state, .empty-state-small{ text-align:center; padding:60px 20px; color:#9A8870; }
-  .empty-state-small{ padding:30px 16px; font-size:13.5px; }
-  .empty-icon{ font-size:40px; margin-bottom:10px; }
-
-  .order-card{ background:var(--card); border:1.5px solid var(--line); border-radius:14px; padding:16px; margin-bottom:12px; }
-  .pending-card{ border:1.5px solid var(--pending); background:#FFF6F4; }
-  .pending-banner{ font-size:11px; font-weight:700; color:var(--pending); text-transform:uppercase; letter-spacing:0.04em; margin-bottom:8px; }
-
-  .order-top{ display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:10px; }
-  .order-id{ font-family:'Fraunces', serif; font-weight:700; font-size:16px; }
-  .queue-tag{
-    font-family:'Manrope', sans-serif; font-weight:700; font-size:11px; color:var(--terracotta-dark);
-    background:#F3E3CC; padding:2px 8px; border-radius:100px; margin-left:6px; vertical-align:middle;
-  }
-  .order-meta{ font-size:12px; color:#9A8870; margin-top:2px; }
-
-  .status-pill{
-    font-size:11px; font-weight:700; padding:4px 10px; border-radius:100px; color:white;
-    text-transform:uppercase; letter-spacing:0.03em; flex-shrink:0;
-  }
-  .status-pending{ background:var(--pending); }
-  .status-new{ background:var(--new); }
-  .status-making{ background:var(--making); }
-  .status-done{ background:var(--done); }
-
-  .order-items{ border-top:1px solid var(--line); padding-top:10px; margin-bottom:10px; }
-  .order-line{ display:flex; justify-content:space-between; font-size:13.5px; padding:3px 0; }
-  .order-total{ display:flex; justify-content:space-between; font-weight:700; font-size:14px; border-top:1px solid var(--line); padding-top:8px; margin-top:4px; }
-
-  .order-actions, .approve-row{ display:flex; gap:8px; margin-top:12px; }
-  .action-btn{
-    flex:1; border:1.5px solid var(--line); background:white; border-radius:9px; padding:9px;
-    font-size:12.5px; font-weight:600; cursor:pointer; color:var(--ink);
-  }
-  .action-btn.active-making{ border-color:var(--making); background:var(--making); color:white; }
-  .action-btn.active-done{ border-color:var(--done); background:var(--done); color:white; }
-  .approve-btn{ flex:1; border:none; background:var(--leaf); color:white; border-radius:9px; padding:11px; font-size:13px; font-weight:700; cursor:pointer; }
-  .reject-btn{ flex:1; border:1.5px solid var(--pending); background:white; color:var(--pending); border-radius:9px; padding:11px; font-size:13px; font-weight:700; cursor:pointer; }
-
-  .tab-row{ display:flex; gap:6px; padding:14px 16px 0; max-width:640px; margin:0 auto; }
-  .tab-btn{
-    flex:1; padding:10px 8px; background:var(--card); border:1.5px solid var(--line); border-radius:10px;
-    font-size:13px; font-weight:700; color:#9A8870; cursor:pointer; font-family:'Manrope', sans-serif;
-  }
-  .tab-btn.active{ background:var(--ink); border-color:var(--ink); color:var(--cream); }
-
-  .tab-page{ display:none; }
-  .tab-page.active{ display:block; }
-
-  .menu-toolbar{ display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; }
-  .menu-toolbar h2{ font-family:'Fraunces', serif; font-size:18px; font-weight:700; }
-  .add-product-btn{ background:var(--terracotta); color:white; border:none; border-radius:9px; padding:9px 14px; font-size:13px; font-weight:700; cursor:pointer; }
-
-  .product-card{
-    background:var(--card); border:1.5px solid var(--line); border-radius:14px; padding:14px 16px;
-    margin-bottom:10px; display:flex; justify-content:space-between; align-items:center; gap:10px;
-  }
-  .product-info .pname{ font-weight:700; font-size:15px; }
-  .product-info .pcat{ font-size:11.5px; color:#9A8870; margin-top:2px; }
-  .product-info .pdesc{ font-size:12.5px; color:#9A8870; margin-top:3px; }
-  .product-info .pprice{ font-family:'Fraunces', serif; font-weight:700; font-size:14.5px; color:var(--terracotta-dark); margin-top:5px; }
-
-  .product-actions{ display:flex; flex-direction:column; gap:6px; flex-shrink:0; }
-  .pact-btn{ border:1.5px solid var(--line); background:white; border-radius:8px; padding:6px 12px; font-size:12px; font-weight:600; cursor:pointer; color:var(--ink); }
-  .pact-btn.danger{ border-color:#C77A6A; color:#C77A6A; }
-  .pact-btn.toggle-off{ background:#F0E8D8; color:#9A8870; }
-
-  .form-overlay{ position:fixed; inset:0; background:rgba(43,33,24,0.5); display:none; align-items:flex-end; z-index:40; }
-  .form-overlay.show{ display:flex; }
-  .form-sheet{ background:var(--cream); width:100%; max-height:90vh; border-radius:20px 20px 0 0; padding:22px 20px 26px; overflow-y:auto; }
-  .form-sheet h3{ font-family:'Fraunces', serif; font-size:20px; font-weight:700; margin-bottom:16px; }
-  .form-field{ margin-bottom:14px; }
-  .form-field label{ font-size:12px; font-weight:600; color:#8A7860; text-transform:uppercase; letter-spacing:0.04em; display:block; margin-bottom:6px; }
-  .form-field input{ width:100%; border:1.5px solid var(--line); border-radius:10px; padding:11px 12px; font-family:'Manrope', sans-serif; font-size:14px; background:white; }
-  .form-save-btn{ width:100%; background:var(--terracotta); color:white; border:none; border-radius:12px; padding:14px; font-size:14.5px; font-weight:700; margin-top:6px; cursor:pointer; }
-  .form-cancel{ text-align:center; margin-top:12px; font-size:13px; color:#9A8870; cursor:pointer; }
-
-  .qr-setup-row{ display:flex; gap:10px; margin-bottom:18px; align-items:flex-end; }
-  .qr-setup-row .form-field{ flex:1; margin-bottom:0; }
-  .qr-generate-btn{ background:var(--terracotta); color:white; border:none; border-radius:10px; padding:11px 16px; font-size:13.5px; font-weight:700; cursor:pointer; height:42px; }
-  .qr-grid{ display:grid; grid-template-columns:1fr 1fr; gap:12px; }
-  .qr-card{ background:var(--card); border:1.5px solid var(--line); border-radius:14px; padding:14px; text-align:center; }
-  .qr-card img, .qr-card canvas{ width:100%; max-width:140px; margin:0 auto 8px; display:block; }
-  .qr-card .qr-label{ font-family:'Fraunces', serif; font-weight:700; font-size:14px; }
-  .qr-card .qr-sub{ font-size:9.5px; color:#9A8870; margin-top:2px; word-break:break-all; }
-  .qr-card.takeaway{ border-color:var(--leaf); background:#F4F8F1; }
-  .qr-section-title{
-    font-family:'Fraunces', serif; font-size:15px; font-weight:700; color:var(--terracotta-dark);
-    text-transform:uppercase; letter-spacing:0.05em; margin:22px 0 10px;
-  }
-  .qr-section-title:first-child{ margin-top:0; }
-  .qr-print-btn{ display:block; width:100%; margin-top:18px; background:var(--ink); color:var(--cream); border:none; border-radius:10px; padding:12px; font-size:13.5px; font-weight:700; cursor:pointer; }
-
-  .refresh-note{ text-align:center; font-size:12px; color:#9A8870; padding:14px 0 0; }
-
-  /* ===== CUSTOMER VIEW ===== */
-  #view-customer header{
-    padding:28px 20px 22px; border-bottom:2px solid var(--line); background:var(--card);
-    position:sticky; top:0; z-index:10;
-  }
-  .shop-name{ font-family:'Fraunces', serif; font-weight:700; font-size:28px; letter-spacing:-0.01em; }
-  .shop-tag{ font-size:13px; color:#8A7860; margin-top:4px; letter-spacing:0.02em; }
-
-  #view-customer main{ padding:20px 16px 90px; max-width:560px; }
-
-  .category-label{
-    font-family:'Fraunces', serif; font-weight:600; font-size:15px; color:var(--terracotta-dark);
-    text-transform:uppercase; letter-spacing:0.08em; margin:28px 4px 12px;
-  }
-  .category-label:first-child{ margin-top:8px; }
-
-  .item{
-    background:var(--card); border:1.5px solid var(--line); border-radius:14px; padding:14px 16px;
-    margin-bottom:10px; display:flex; justify-content:space-between; align-items:center; gap:12px;
-  }
-  .item-info{ flex:1; }
-  .item-name{ font-size:16px; font-weight:600; }
-  .item-desc{ font-size:13px; color:#9A8870; margin-top:2px; }
-  .item-price{ font-family:'Fraunces', serif; font-weight:600; font-size:15px; margin-top:6px; color:var(--terracotta-dark); }
-
-  .qty-control{ display:flex; align-items:center; gap:10px; flex-shrink:0; }
-  .qty-btn{
-    width:30px; height:30px; border-radius:8px; border:1.5px solid var(--terracotta); background:white;
-    color:var(--terracotta); font-size:17px; font-weight:700; cursor:pointer; display:flex;
-    align-items:center; justify-content:center; line-height:1;
-  }
-  .add-btn{ border-radius:8px; border:1.5px solid var(--terracotta); background:var(--terracotta); color:white; font-size:13px; font-weight:600; padding:7px 14px; cursor:pointer; }
-  .qty-num{ min-width:18px; text-align:center; font-weight:700; font-size:15px; }
-
-  .cart-bar{
-    position:fixed; bottom:0; left:0; right:0; background:var(--ink); color:var(--cream); padding:14px 20px;
-    display:none; align-items:center; justify-content:space-between; cursor:pointer; z-index:20;
-  }
-  .cart-bar.show{ display:flex; }
-  .cart-bar-left{ font-size:14px; font-weight:600; }
-  .cart-bar-left span{ color:#C9A876; font-family:'Fraunces', serif; }
-  .cart-bar-right{ background:var(--terracotta); color:white; font-weight:700; font-size:14px; padding:8px 16px; border-radius:8px; }
-
-  .overlay{ position:fixed; inset:0; background:rgba(43,33,24,0.5); display:none; z-index:30; align-items:flex-end; }
-  .overlay.show{ display:flex; }
-  .sheet{ background:var(--cream); width:100%; max-height:85vh; border-radius:20px 20px 0 0; padding:22px 20px 24px; overflow-y:auto; }
-  .sheet-title{ font-family:'Fraunces', serif; font-weight:700; font-size:22px; margin-bottom:16px; }
-  .sheet-item{ display:flex; justify-content:space-between; padding:10px 0; border-bottom:1px solid var(--line); font-size:14px; }
-  .sheet-total{ display:flex; justify-content:space-between; padding:16px 0 4px; font-family:'Fraunces', serif; font-weight:700; font-size:18px; }
-
-  .type-toggle{ display:flex; gap:8px; }
-  .type-btn{
-    flex:1; border:1.5px solid var(--line); background:white; color:var(--ink); border-radius:10px;
-    padding:11px 8px; font-size:13.5px; font-weight:600; cursor:pointer; font-family:'Manrope', sans-serif;
-  }
-  .type-btn.active{ border-color:var(--terracotta); background:var(--terracotta); color:white; }
-
-  .locked-type-badge{
-    background:#F4F8F1; border:1.5px solid var(--leaf); color:var(--leaf); border-radius:10px;
-    padding:11px 12px; font-size:13.5px; font-weight:700;
-  }
-
-  .place-order-btn{
-    width:100%; background:var(--terracotta); color:white; border:none; border-radius:12px;
-    padding:15px; font-size:15px; font-weight:700; margin-top:20px; cursor:pointer;
-  }
-  .place-order-btn:disabled{ opacity:0.6; cursor:not-allowed; }
-  .close-sheet{ text-align:center; margin-top:14px; font-size:13px; color:#9A8870; cursor:pointer; }
-
-  .confirm-screen{ text-align:center; padding:30px 10px; }
-  .confirm-icon{ font-size:46px; margin-bottom:10px; }
-  .status-ready .confirm-icon{ animation: pulse 1s ease-in-out infinite; }
-  @keyframes pulse{ 0%, 100%{ transform:scale(1); } 50%{ transform:scale(1.15); } }
-  .confirm-title{ font-family:'Fraunces', serif; font-weight:700; font-size:22px; margin-bottom:6px; }
-  .confirm-sub{ font-size:14px; color:#8A7860; margin-bottom:18px; }
-  .order-id{
-    display:inline-block; background:var(--card); border:1.5px dashed var(--terracotta); padding:8px 16px;
-    border-radius:10px; font-family:'Fraunces', serif; font-weight:700; letter-spacing:0.05em;
-  }
-  .status-track{ display:flex; gap:6px; margin:22px 0 4px; }
-  .track-step{
-    flex:1; font-size:10.5px; font-weight:700; text-align:center; padding:7px 2px; border-radius:8px;
-    background:var(--line); color:#9A8870; text-transform:uppercase; letter-spacing:0.02em;
-  }
-  .track-step.active{ background:var(--terracotta); color:white; }
-  .track-step.done{ background:var(--leaf); color:white; }
-  .new-order-btn{
-    display:block; width:100%; margin-top:16px; background:var(--leaf); color:white; border:none;
-    border-radius:12px; padding:14px; font-size:14px; font-weight:700; cursor:pointer;
-  }
-
-  @media print{
-    #view-dashboard header, .tab-row, .stats-row, .sales-banner, .qr-setup-row, .qr-print-btn, .refresh-note{
-      display:none !important;
-    }
-  }
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Neon Retro Joystick Arcade</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        body {
+            background-color: #090a0f;
+            color: #ffffff;
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+        }
+        .game-container {
+            width: 100%;
+            max-width: 480px;
+            padding: 15px;
+            text-align: center;
+        }
+        header {
+            margin-bottom: 10px;
+        }
+        h1 {
+            font-size: 24px;
+            font-weight: 800;
+            letter-spacing: 2px;
+            color: #00f0ff;
+            text-shadow: 0 0 10px rgba(0, 240, 255, 0.6);
+            text-transform: uppercase;
+        }
+        .dashboard {
+            display: flex;
+            justify-content: space-between;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(0, 240, 255, 0.1);
+            padding: 8px 15px;
+            border-radius: 8px;
+            margin-bottom: 12px;
+            font-size: 14px;
+            font-weight: bold;
+        }
+        .score-box {
+            color: #ff007f;
+            text-shadow: 0 0 8px rgba(255, 0, 127, 0.5);
+        }
+        .high-score-box {
+            color: #ffcc00;
+            text-shadow: 0 0 8px rgba(255, 204, 0, 0.5);
+        }
+        canvas {
+            background: #11131e;
+            display: block;
+            margin: 0 auto;
+            border: 2px solid #00f0ff;
+            border-radius: 12px;
+            box-shadow: 0 0 25px rgba(0, 240, 255, 0.25);
+            max-width: 100%;
+            touch-action: none;
+        }
+        /* Virtual Joystick CSS styling */
+        .joystick-wrapper {
+            margin-top: 25px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        #joystick-container {
+            position: relative;
+            width: 130px;
+            height: 130px;
+            background: radial-gradient(circle, rgba(255,255,255,0.03) 0%, rgba(0,240,255,0.05) 100%);
+            border: 3px solid #00f0ff;
+            border-radius: 50%;
+            box-shadow: 0 0 15px rgba(0, 240, 255, 0.15), inset 0 0 15px rgba(0, 240, 255, 0.1);
+            touch-action: none;
+        }
+        #joystick-knob {
+            position: absolute;
+            width: 46px;
+            height: 46px;
+            background: radial-gradient(circle, #ff007f 0%, #a3004f 100%);
+            border: 2px solid #ffffff;
+            border-radius: 50%;
+            top: 39px;
+            left: 39px;
+            box-shadow: 0 0 12px rgba(255, 0, 127, 0.8);
+            cursor: grab;
+            transition: transform 0.05s linear;
+        }
+        #joystick-knob:active {
+            cursor: grabbing;
+            background: radial-gradient(circle, #ff3399 0%, #ff007f 100%);
+        }
+        .instructions {
+            font-size: 11px;
+            color: #666a80;
+            margin-top: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+    </style>
 </head>
 <body>
 
-<!-- ===================== LOADING ===================== -->
-<div class="full-error" id="loadingScreen">
-  <div class="icon">⏳</div>
-  <div class="title">Loading…</div>
+<div class="game-container">
+    <header>
+        <h1>Cyber Neon Hunt</h1>
+    </header>
+
+    <div class="dashboard">
+        <div class="score-box">COINS: <span id="current-score">0</span></div>
+        <div class="high-score-box">BEST: <span id="high-score"><?php echo $_SESSION['high_score']; ?></span></div>
+    </div>
+
+    <!-- Canvas viewport -->
+    <canvas id="gameViewport" width="400" height="400"></canvas>
+
+    <!-- Custom Digital Joystick Container -->
+    <div class="joystick-wrapper">
+        <div id="joystick-container">
+            <div id="joystick-knob"></div>
+        </div>
+    </div>
+    
+    <div class="instructions">Drag Joystick knob or use cursor to control character</div>
 </div>
 
-<!-- ===================== LOGIN VIEW ===================== -->
-<div class="view" id="view-login">
-  <div id="view-login-inner" style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;">
-    <div class="auth-card">
-      <div class="brand">
-        <div class="brand-icon">🍵</div>
-        <div class="brand-title">Shop Owner Login</div>
-        <div class="brand-sub">Manage your menu & orders</div>
-      </div>
+<script>
+    const canvas = document.getElementById("gameViewport");
+    const ctx = canvas.getContext("2d");
+    const scoreText = document.getElementById("current-score");
+    const highScoreText = document.getElementById("high-score");
 
-      <div class="mode-toggle">
-        <button class="mode-btn active" id="modeLoginBtn" onclick="setAuthMode('login')">Log In</button>
-        <button class="mode-btn" id="modeSignupBtn" onclick="setAuthMode('signup')">Sign Up</button>
-      </div>
+    // Game Metrics & Engine states
+    let score = 0;
+    let highScore = <?php echo $_SESSION['high_score']; ?>;
+    
+    // Configurable Entity states
+    const player = { x: 200, y: 200, radius: 10, speed: 4.5, dx: 0, dy: 0 };
+    const targetToken = { x: 0, y: 0, radius: 7 };
 
-      <div class="error-msg" id="authErrorMsg"></div>
+    // Set dynamic startup location for token
+    function randomizeToken() {
+        targetToken.x = Math.max(targetToken.radius, Math.min(canvas.width - targetToken.radius, Math.random() * canvas.width));
+        targetToken.y = Math.max(targetToken.radius, Math.min(canvas.height - targetToken.radius, Math.random() * canvas.height));
+    }
+    randomizeToken();
 
-      <form id="authForm" onsubmit="handleAuthSubmit(event)">
-        <div class="field signup-only" id="shopNameField">
-          <label>Shop Name</label>
-          <input type="text" id="authShopName" placeholder="e.g. Karachi Chai Point">
-        </div>
-        <div class="field">
-          <label>Email</label>
-          <input type="email" id="authEmail" required placeholder="you@example.com">
-        </div>
-        <div class="field">
-          <label>Password</label>
-          <input type="password" id="authPassword" required placeholder="At least 6 characters" minlength="6">
-        </div>
-        <button type="submit" class="submit-btn" id="authSubmitBtn">Log In</button>
-      </form>
+    // Joystick Mechanics Configuration
+    const joyContainer = document.getElementById("joystick-container");
+    const joyKnob = document.getElementById("joystick-knob");
+    let isJoystickEngaged = false;
+    const maxBoundRadius = 42; // Dynamic offset limit inside container
 
-      <div class="hint" id="authHintText">Don't have an account? Tap "Sign Up" above.</div>
-    </div>
-  </div>
-</div>
+    function executeMovementLogic(pointerX, pointerY) {
+        const bounds = joyContainer.getBoundingClientRect();
+        const pivotX = bounds.left + bounds.width / 2;
+        const pivotY = bounds.top + bounds.height / 2;
+        
+        let offsetX = pointerX - pivotX;
+        let offsetY = pointerY - pivotY;
+        let magnitude = Math.sqrt(offsetX * offsetX + offsetY * offsetY);
 
-<!-- ===================== DASHBOARD VIEW ===================== -->
-<div class="view" id="view-dashboard">
-  <header>
-    <div>
-      <div class="dash-title" id="shopNameDisplay">Owner Dashboard</div>
-      <div class="dash-sub">Live Orders</div>
-    </div>
-    <button class="logout-btn" onclick="handleLogout()">Log Out</button>
-  </header>
+        if (magnitude > maxBoundRadius) {
+            offsetX = (offsetX / magnitude) * maxBoundRadius;
+            offsetY = (offsetY / magnitude) * maxBoundRadius;
+            magnitude = maxBoundRadius;
+        }
 
-  <div class="tab-row">
-    <button class="tab-btn active" id="tabBtnOrders" onclick="switchTab('orders')">📋 Orders</button>
-    <button class="tab-btn" id="tabBtnMenu" onclick="switchTab('menu')">🍽 Menu</button>
-    <button class="tab-btn" id="tabBtnQr" onclick="switchTab('qr')">📱 QR Codes</button>
-  </div>
+        joyKnob.style.transform = `translate(${offsetX}px, ${offsetY}px)`;
 
-  <div class="tab-page active" id="pageOrders">
-    <div class="stats-row">
-      <div class="stat-box"><div class="stat-num" id="statPending">0</div><div class="stat-label">Pending Approval</div></div>
-      <div class="stat-box"><div class="stat-num" id="statQueue">0</div><div class="stat-label">In Queue (Accepted)</div></div>
-      <div class="stat-box"><div class="stat-num" id="statDineIn">0</div><div class="stat-label">🍽 Dine-in Waiting</div></div>
-      <div class="stat-box"><div class="stat-num" id="statTakeaway">0</div><div class="stat-label">🛍 Takeaway Waiting</div></div>
-    </div>
-    <div class="sales-banner" id="salesBanner">Today's Sales: Rs 0</div>
-    <main id="ordersList"></main>
-    <div class="refresh-note">Orders update live — no refresh needed</div>
-  </div>
+        // Translate radial grid system into velocity scales for 2D map rendering
+        player.dx = (offsetX / maxBoundRadius) * player.speed;
+        player.dy = (offsetY / maxBoundRadius) * player.speed;
+    }
 
-  <div class="tab-page" id="pageMenu">
-    <main style="padding-top:18px;">
-      <div class="menu-toolbar">
-        <h2>Your Products</h2>
-        <button class="add-product-btn" onclick="openProductForm()">+ Add Product</button>
-      </div>
-      <div id="product
+    function killJoystickEngagement() {
+        isJoystickEngaged = false;
+        joyKnob.style.transform = "translate(0px, 0px)";
+        player.dx = 0;
+        player.dy = 0;
+    }
+
+    // Capture Touch Hardware Layout Map Configurations
+    joyContainer.addEventListener("touchstart", (e) => { 
+        isJoystickEngaged = true; 
+        executeMovementLogic(e.touches[0].clientX, e.touches[0].clientY); 
+    }, {passive: true});
+    
+    window.addEventListener("touchmove", (e) => { 
+        if (isJoystickEngaged) executeMovementLogic(e.touches[0].clientX, e.touches[0].clientY); 
+    }, {passive: true});
+    
+    window.addEventListener("touchend", killJoystickEngagement);
+
+    // Desktop Mouse Fallbacks
+    joyContainer.addEventListener("mousedown", (e) => { 
+        isJoystickEngaged = true; 
+        executeMovementLogic(e.clientX, e.clientY); 
+    });
+    
+    window.addEventListener("mousemove", (e) => { 
+        if (isJoystickEngaged) executeMovementLogic(e.clientX, e.clientY); 
+    });
+    
+    window.addEventListener("mouseup", killJoystickEngagement);
+
+    // Asynchronous network layer sync using built-in PHP API interface
+    function updateBackendScore(currentPoints) {
+        const payload = new URLSearchParams();
+        payload.append('action', 'save_score');
+        payload.append('score', currentPoints);
+
+        fetch(window.location.href, {
+            method: 'POST',
+            body: payload,
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.status === 'success') {
+                highScoreText.innerText = data.current_high_score;
+            }
+        })
+        .catch(err => console.error("Error submitting server analytics data packet:", err));
+    }
+
+    // Central Update and Rendering Routine
+    function loop() {
+        // Player boundary transformations
+        player.x += player.dx;
+        player.y += player.dy;
+
+        // Map confinement thresholds
+        if (player.x - player.radius < 0) player.x = player.radius;
+        if (player.x + player.radius > canvas.width) player.x = canvas.width - player.radius;
+        if (player.y - player.radius < 0) player.y = player.radius;
+        if (player.y + player.radius > canvas.height) player.y = canvas.height - player.radius;
+
+        // Circular overlap/collision checking routine
+        const distVectorX = player.x - targetToken.x;
+        const distVectorY = player.y - targetToken.y;
+        const netDistance = Math.sqrt(distVectorX * distVectorX + distVectorY * distVectorY);
+
+        if (netDistance < player.radius + targetToken.radius) {
+            score++;
+            scoreText.innerText = score;
+            randomizeToken();
+            updateBackendScore(score);
+        }
+
+        // Draw Layer Pipeline
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        // Grid lines effect for retro visual depth
+        ctx.strokeStyle = "rgba(0, 240, 255, 0.02)";
+        ctx.lineWidth = 1;
+        for (let i = 0; i < canvas.width; i += 25) {
+            ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, canvas.height); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(canvas.width, i); ctx.stroke();
+        }
+
+        // Draw Player Glowing Circle
+        ctx.beginPath();
+        ctx.arc(player.x, player.y, player.radius, 0, Math.PI * 2);
+        ctx.fillStyle = "#00f0ff";
+        ctx.shadowBlur = 12;
+        ctx.shadowColor = "#00f0ff";
+        ctx.fill();
+        ctx.closePath();
+
+        // Draw Token Goal Object
+        ctx.beginPath();
+        ctx.arc(targetToken.x, targetToken.y, targetToken.radius, 0, Math.PI * 2);
+        ctx.fillStyle = "#ffcc00";
+        ctx.shadowBlur = 15;
+        ctx.shadowColor = "#ffcc00";
+        ctx.fill();
+        ctx.closePath();
+
+        // Reset blur context settings to save processing headroom
+        ctx.shadowBlur = 0;
+
+        requestAnimationFrame(loop);
+    }
+
+    // Boot up engine instance
+    loop();
+</script>
+
+</body>
+</html>

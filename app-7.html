@@ -1,12 +1,12 @@
 <?php
 session_start();
 
-// Initialize High Score if not set
+ 
 if (!isset($_SESSION['high_score'])) {
     $_SESSION['high_score'] = 0;
 }
 
-// Handle AJAX Post Request to update score
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'save_score') {
     $current_score = isset($_POST['score']) ? intval($_POST['score']) : 0;
     $new_record = false;
